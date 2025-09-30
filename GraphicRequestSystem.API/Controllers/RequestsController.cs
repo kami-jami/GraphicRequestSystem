@@ -4,9 +4,11 @@ using GraphicRequestSystem.API.DTOs;
 using GraphicRequestSystem.API.Infrastructure.Data;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authorization;
 
 namespace GraphicRequestSystem.API.Controllers
 {
+    [Authorize]
     [Route("api/[controller]")]
     [ApiController]
     public class RequestsController : ControllerBase
@@ -27,6 +29,7 @@ namespace GraphicRequestSystem.API.Controllers
         }
 
         // POST: api/Requests
+        [Authorize(Roles = "Requester")]
         [HttpPost]
         public async Task<IActionResult> CreateRequest(CreateRequestDto requestDto)
         {
