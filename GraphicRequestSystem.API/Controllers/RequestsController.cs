@@ -165,5 +165,67 @@ namespace GraphicRequestSystem.API.Controllers
                 return StatusCode(500, "An internal error occurred.");
             }
         }
+
+        // PATCH: api/Requests/{id}/complete-design
+        [HttpPatch("{id}/complete-design")]
+        public async Task<IActionResult> CompleteDesign(int id, [FromBody] CompleteDesignDto completeDto)
+        {
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                var request = await _context.Requests.FindAsync(id);
+                if (request == null)
+                {
+                    return NotFound();
+                }
+
+                if (request.Status != Core.Enums.RequestStatus.DesignInProgress)
+                {
+                    return BadRequest("This action can only be performed on a request that is in progress.");
+                }
+
+                var previousStatus = request.Status;
+                Core.Enums.RequestStatus newStatus;
+
+                if (completeDto.NeedsApproval)
+                {
+                    if (string.IsNullOrEmpty(completeDto.ApproverId))
+                    {
+                        return BadRequest("ApproverId is required when the request needs approval.");
+                    }
+                    newStatus = Core.Enums.RequestStatus.PendingApproval;
+                    request.ApproverId = completeDto.ApproverId;
+                }
+                else
+                {
+                    newStatus = Core.Enums.RequestStatus.Completed;
+                    request.CompletionDate = DateTime.UtcNow; // Set completion date
+                }
+
+                // Update request status
+                request.Status = newStatus;
+
+                // Create a history log entry
+                var historyLog = new RequestHistory
+                {
+                    RequestId = id,
+                    ActionDate = DateTime.UtcNow,
+                    ActorId = completeDto.ActorId,
+                    PreviousStatus = previousStatus,
+                    NewStatus = newStatus,
+                    Comment = completeDto.Comment
+                };
+                await _context.RequestHistories.AddAsync(historyLog);
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                return Ok(request);
+            }
+            catch (Exception)
+            {
+                return StatusCode(500, "An internal error occurred.");
+            }
+        }
     }
 }
