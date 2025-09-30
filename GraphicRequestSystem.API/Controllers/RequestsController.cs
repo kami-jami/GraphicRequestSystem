@@ -227,5 +227,73 @@ namespace GraphicRequestSystem.API.Controllers
                 return StatusCode(500, "An internal error occurred.");
             }
         }
+
+        // PATCH: api/Requests/{id}/process-approval
+        [HttpPatch("{id}/process-approval")]
+        public async Task<IActionResult> ProcessApproval(int id, [FromBody] ProcessApprovalDto approvalDto)
+        {
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                var request = await _context.Requests.FindAsync(id);
+                if (request == null)
+                {
+                    return NotFound();
+                }
+
+                // Action is only valid if the request is pending approval
+                if (request.Status != Core.Enums.RequestStatus.PendingApproval)
+                {
+                    return BadRequest("This action can only be performed on a request that is pending approval.");
+                }
+
+                // Optional but recommended: Check if the actor is the designated approver
+                if (request.ApproverId != approvalDto.ActorId)
+                {
+                    return Unauthorized("You are not authorized to process this request.");
+                }
+
+                var previousStatus = request.Status;
+                Core.Enums.RequestStatus newStatus;
+
+                if (approvalDto.IsApproved)
+                {
+                    newStatus = Core.Enums.RequestStatus.Completed;
+                    request.CompletionDate = DateTime.UtcNow; // Set completion date on final approval
+                }
+                else
+                {
+                    if (string.IsNullOrEmpty(approvalDto.Comment))
+                    {
+                        return BadRequest("A comment is required when rejecting a design.");
+                    }
+                    newStatus = Core.Enums.RequestStatus.PendingRedesign;
+                }
+
+                // Update request status
+                request.Status = newStatus;
+
+                // Create a history log entry
+                var historyLog = new RequestHistory
+                {
+                    RequestId = id,
+                    ActionDate = DateTime.UtcNow,
+                    ActorId = approvalDto.ActorId,
+                    PreviousStatus = previousStatus,
+                    NewStatus = newStatus,
+                    Comment = approvalDto.Comment
+                };
+                await _context.RequestHistories.AddAsync(historyLog);
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                return Ok(request);
+            }
+            catch (Exception)
+            {
+                return StatusCode(500, "An internal error occurred.");
+            }
+        }
     }
 }
