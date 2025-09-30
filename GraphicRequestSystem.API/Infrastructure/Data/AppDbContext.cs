@@ -38,6 +38,13 @@ namespace GraphicRequestSystem.API.Infrastructure.Data
                 new LookupItem { Id = 9, LookupId = 1, Value = "تبلیغات محیطی" },
                 new LookupItem { Id = 10, LookupId = 1, Value = "متفرقه" }
             );
+
+            modelBuilder.Entity<SystemSetting>().HasData(
+                // new SystemSetting { Id = 1, SettingKey = "DeadlineWarningDays", SettingValue = "2" },
+                new SystemSetting { Id = 2, SettingKey = "MaxNormalRequestsPerDay", SettingValue = "5" },
+                new SystemSetting { Id = 3, SettingKey = "MaxUrgentRequestsPerDay", SettingValue = "2" },
+                new SystemSetting { Id = 4, SettingKey = "OrderableDaysInFuture", SettingValue = "30" }
+            );
         }
     }
 }
