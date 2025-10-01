@@ -341,5 +341,53 @@ namespace GraphicRequestSystem.API.Controllers
                 return StatusCode(500, "An internal error occurred.");
             }
         }
+
+        // GET: api/Requests/{id}/comments
+        [HttpGet("{id}/comments")]
+        public async Task<IActionResult> GetRequestComments(int id)
+        {
+            var comments = await _context.Comments
+                .Where(c => c.RequestId == id)
+                .OrderBy(c => c.CreatedAt)
+                .Select(c => new
+                {
+                    c.Id,
+                    c.Content,
+                    c.CreatedAt,
+                    Author = c.Author.UserName
+                })
+                .ToListAsync();
+
+            return Ok(comments);
+        }
+
+        // POST: api/Requests/{id}/comments
+        [HttpPost("{id}/comments")]
+        public async Task<IActionResult> AddComment(int id, [FromBody] CreateCommentDto commentDto)
+        {
+            var authorId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(authorId))
+            {
+                return Unauthorized();
+            }
+
+            if (!await _context.Requests.AnyAsync(r => r.Id == id))
+            {
+                return NotFound("Request not found.");
+            }
+
+            var comment = new Comment
+            {
+                Content = commentDto.Content,
+                RequestId = id,
+                AuthorId = authorId,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            await _context.Comments.AddAsync(comment);
+            await _context.SaveChangesAsync();
+
+            return Ok(comment);
+        }
     }
 }

@@ -1,5 +1,6 @@
 ﻿
 using GraphicRequestSystem.API.Core.Entities;
+using GraphicRequestSystem.API.Core.Enums;
 using GraphicRequestSystem.API.DTOs;
 using GraphicRequestSystem.API.Infrastructure.Data;
 using Microsoft.AspNetCore.Authorization;
@@ -103,6 +104,64 @@ namespace GraphicRequestSystem.API.Controllers
 
             await _context.SaveChangesAsync();
             return Ok("Settings updated successfully.");
+        }
+
+        // GET: api/Admin/dashboard
+        [HttpGet("dashboard")]
+        public async Task<IActionResult> GetDashboardStats()
+        {
+            var dashboardDto = new AdminDashboardDto();
+
+            // 1. Get total user count
+            dashboardDto.TotalUsers = await _userManager.Users.CountAsync();
+
+            // 2. Get request stats
+            var allRequests = await _context.Requests.ToListAsync();
+
+            dashboardDto.TotalRequests = allRequests.Count;
+
+            var nonCompletedStatuses = new[] {
+                RequestStatus.Submitted, RequestStatus.DesignerReview, RequestStatus.PendingCorrection,
+                RequestStatus.DesignInProgress, RequestStatus.PendingApproval, RequestStatus.PendingRedesign
+            };
+
+            dashboardDto.PendingRequests = allRequests.Count(r => nonCompletedStatuses.Contains(r.Status));
+
+            dashboardDto.OverdueRequests = allRequests.Count(r => nonCompletedStatuses.Contains(r.Status) && r.DueDate < DateTime.UtcNow);
+
+            // 3. Get request counts by status
+            dashboardDto.RequestsByStatus = allRequests
+                .GroupBy(r => r.Status)
+                .Select(g => new StatusCountDto
+                {
+                    Status = g.Key,
+                    StatusName = g.Key.ToString(),
+                    Count = g.Count()
+                })
+                .ToList();
+
+            return Ok(dashboardDto);
+        }
+
+
+        // GET: api/Admin/lookups
+        [HttpGet("lookups")]
+        public async Task<IActionResult> GetLookupLists()
+        {
+            return Ok(await _context.Lookups.Select(l => l.Name).ToListAsync());
+        }
+
+        // GET: api/Admin/lookups/{listName}
+        [HttpGet("lookups/{listName}")]
+        public async Task<IActionResult> GetLookupItems(string listName)
+        {
+            var items = await _context.LookupItems
+                .Include(i => i.Lookup)
+                .Where(i => i.Lookup.Name.ToLower() == listName.ToLower())
+                .Select(i => new { i.Id, i.Value })
+                .ToListAsync();
+
+            return Ok(items);
         }
     }
 }

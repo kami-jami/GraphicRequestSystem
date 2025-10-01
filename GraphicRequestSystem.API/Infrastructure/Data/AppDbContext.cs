@@ -18,6 +18,7 @@ namespace GraphicRequestSystem.API.Infrastructure.Data
         public DbSet<LabelRequestDetail> LabelRequestDetails { get; set; }
         public DbSet<RequestHistory> RequestHistories { get; set; }
         public DbSet<Attachment> Attachments { get; set; }
+        public DbSet<Comment> Comments { get; set; }
 
 
 
