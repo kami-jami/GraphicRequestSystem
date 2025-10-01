@@ -5,6 +5,7 @@ using GraphicRequestSystem.API.Infrastructure.Data;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
 
 namespace GraphicRequestSystem.API.Controllers
 {
@@ -33,6 +34,12 @@ namespace GraphicRequestSystem.API.Controllers
         [HttpPost]
         public async Task<IActionResult> CreateRequest(CreateRequestDto requestDto)
         {
+            var requesterId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(requesterId))
+            {
+                return Unauthorized();
+            }
+
             // Start a transaction to ensure both tables are updated successfully
             using var transaction = await _context.Database.BeginTransactionAsync();
 
@@ -44,7 +51,7 @@ namespace GraphicRequestSystem.API.Controllers
                     Title = requestDto.Title,
                     RequestTypeId = requestDto.RequestTypeId,
                     Priority = requestDto.Priority,
-                    RequesterId = requestDto.RequesterId,
+                    RequesterId = requesterId,
                     DueDate = requestDto.DueDate,
                     Status = RequestStatus.Submitted,
                     SubmissionDate = DateTime.UtcNow

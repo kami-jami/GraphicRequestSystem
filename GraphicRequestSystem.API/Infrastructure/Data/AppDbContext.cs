@@ -24,6 +24,30 @@ namespace GraphicRequestSystem.API.Infrastructure.Data
         {
             base.OnModelCreating(modelBuilder);
 
+            modelBuilder.Entity<Request>()
+            .HasOne(r => r.Requester)
+            .WithMany()
+            .HasForeignKey(r => r.RequesterId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<Request>()
+               .HasOne(r => r.Designer)
+               .WithMany()
+               .HasForeignKey(r => r.DesignerId)
+               .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<Request>()
+                .HasOne(r => r.Approver)
+                .WithMany()
+                .HasForeignKey(r => r.ApproverId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<RequestHistory>()
+                .HasOne(h => h.Actor)
+                .WithMany()
+                .HasForeignKey(h => h.ActorId)
+                .OnDelete(DeleteBehavior.Restrict);
+
             // Update Seeding Logic with new names
             var requestTypeLookup = new Lookup { Id = 1, Name = "RequestTypes" };
             modelBuilder.Entity<Lookup>().HasData(requestTypeLookup);

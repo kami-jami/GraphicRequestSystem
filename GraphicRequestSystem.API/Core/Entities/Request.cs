@@ -18,11 +18,16 @@ namespace GraphicRequestSystem.API.Core.Entities
         public RequestStatus Status { get; set; }
         public RequestPriority Priority { get; set; }
 
-        // فعلا شناسه کاربران را string در نظر میگیریم تا بعدا سیستم کاربران را کامل کنیم
+        
         [Required]
         public required string RequesterId { get; set; }
+        public AppUser Requester { get; set; } = null!;
+
         public string? DesignerId { get; set; }
+        public AppUser? Designer { get; set; }
+
         public string? ApproverId { get; set; }
+        public AppUser? Approver { get; set; }
 
         public DateTime SubmissionDate { get; set; }
         public DateTime DueDate { get; set; }

@@ -13,7 +13,8 @@ namespace GraphicRequestSystem.API.Core.Entities
         public DateTime ActionDate { get; set; } // زمان ثبت رویداد
 
         [Required]
-        public required string ActorId { get; set; } // شناسه کاربری که این اقدام را انجام داده
+        public required string ActorId { get; set; }
+        public AppUser Actor { get; set; } = null!;
 
         public RequestStatus PreviousStatus { get; set; } // وضعیت قبلی
         public RequestStatus NewStatus { get; set; } // وضعیت جدید

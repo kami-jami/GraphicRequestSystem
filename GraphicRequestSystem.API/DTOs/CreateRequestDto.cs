@@ -14,9 +14,6 @@ namespace GraphicRequestSystem.API.DTOs
 
         public RequestPriority Priority { get; set; }
 
-        [Required]
-        public required string RequesterId { get; set; } // فعلا یک متن ساده میگیریم
-
         public DateTime DueDate { get; set; }
 
         public LabelRequestDetailDto? LabelDetails { get; set; }
