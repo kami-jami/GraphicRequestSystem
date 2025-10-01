@@ -32,7 +32,7 @@ namespace GraphicRequestSystem.API.Controllers
         // POST: api/Requests
         [Authorize(Roles = "Requester")]
         [HttpPost]
-        public async Task<IActionResult> CreateRequest(CreateRequestDto requestDto)
+        public async Task<IActionResult> CreateRequest([FromForm] CreateRequestDto requestDto, List<IFormFile> files)
         {
             var requesterId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrEmpty(requesterId))
@@ -84,6 +84,42 @@ namespace GraphicRequestSystem.API.Controllers
                     await _context.LabelRequestDetails.AddAsync(labelDetail);
                     await _context.SaveChangesAsync();
                 }
+
+                
+                if (files != null && files.Count > 0)
+                {
+                    // پوشه آپلود را مشخص می‌کنیم (مثلا wwwroot/uploads)
+                    var uploadPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads");
+                    if (!Directory.Exists(uploadPath))
+                    {
+                        Directory.CreateDirectory(uploadPath);
+                    }
+
+                    foreach (var file in files)
+                    {
+                        var storedFileName = $"{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
+                        var filePath = Path.Combine(uploadPath, storedFileName);
+
+                        using (var stream = new FileStream(filePath, FileMode.Create))
+                        {
+                            await file.CopyToAsync(stream);
+                        }
+
+                        var attachment = new Attachment
+                        {
+                            RequestId = newRequest.Id,
+                            OriginalFileName = file.FileName,
+                            StoredFileName = storedFileName,
+                            FilePath = filePath,
+                            ContentType = file.ContentType,
+                            FileSize = file.Length,
+                            UploadDate = DateTime.UtcNow
+                        };
+                        await _context.Attachments.AddAsync(attachment);
+                    }
+                    await _context.SaveChangesAsync(); 
+                }
+                
 
                 // If everything is successful, commit the transaction
                 await transaction.CommitAsync();
