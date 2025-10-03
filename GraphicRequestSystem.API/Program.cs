@@ -9,10 +9,25 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
+using GraphicRequestSystem.API.Core.Interfaces;
+using GraphicRequestSystem.API.Infrastructure.Strategies;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
+
+builder.Services.AddScoped<IRequestDetailStrategy, LabelRequestStrategy>();
+builder.Services.AddScoped<IRequestDetailStrategy, PackagingPhotoStrategy>();
+builder.Services.AddScoped<IRequestDetailStrategy, InstagramPostStrategy>();
+builder.Services.AddScoped<IRequestDetailStrategy, PromotionalVideoStrategy>();
+builder.Services.AddScoped<IRequestDetailStrategy, WebsiteContentStrategy>();
+builder.Services.AddScoped<IRequestDetailStrategy, FileEditStrategy>();
+builder.Services.AddScoped<IRequestDetailStrategy, PromotionalItemStrategy>();
+builder.Services.AddScoped<IRequestDetailStrategy, VisualAdStrategy>();
+builder.Services.AddScoped<IRequestDetailStrategy, EnvironmentalAdStrategy>();
+builder.Services.AddScoped<IRequestDetailStrategy, MiscellaneousStrategy>();
+builder.Services.AddScoped<IRequestDetailStrategy, DefaultRequestStrategy>();
+builder.Services.AddScoped<RequestDetailStrategyFactory>();
 
 builder.Services.AddHangfire(configuration => configuration
     .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)

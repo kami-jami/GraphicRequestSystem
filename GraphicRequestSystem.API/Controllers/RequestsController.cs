@@ -6,6 +6,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
+using GraphicRequestSystem.API.Core;
+using GraphicRequestSystem.API.Infrastructure.Strategies;
 
 namespace GraphicRequestSystem.API.Controllers
 {
@@ -15,10 +17,13 @@ namespace GraphicRequestSystem.API.Controllers
     public class RequestsController : ControllerBase
     {
         private readonly AppDbContext _context;
+        private readonly RequestDetailStrategyFactory _strategyFactory; 
 
-        public RequestsController(AppDbContext context)
+        // ۲. سازنده را برای دریافت Factory اصلاح کنید
+        public RequestsController(AppDbContext context, RequestDetailStrategyFactory strategyFactory)
         {
             _context = context;
+            _strategyFactory = strategyFactory; // ۳. مقداردهی کنید
         }
 
         // GET: api/Requests
@@ -35,6 +40,11 @@ namespace GraphicRequestSystem.API.Controllers
         public async Task<IActionResult> CreateRequest([FromForm] CreateRequestDto requestDto, List<IFormFile> files)
         {
             var requesterId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var requestTypeItem = await _context.LookupItems.FindAsync(requestDto.RequestTypeId);
+            if (requestTypeItem == null)
+            {
+                return BadRequest("Invalid Request Type ID.");
+            }
             if (string.IsNullOrEmpty(requesterId))
             {
                 return Unauthorized();
@@ -45,6 +55,13 @@ namespace GraphicRequestSystem.API.Controllers
 
             try
             {
+                //var requestTypeItem = await _context.LookupItems.FindAsync(requestDto.RequestTypeId);
+                if (requestTypeItem == null)
+                {
+                    return BadRequest("Invalid Request Type ID.");
+                }
+
+
                 // 1. Create and save the main Request object
                 var newRequest = new Request
                 {
@@ -59,31 +76,13 @@ namespace GraphicRequestSystem.API.Controllers
                 await _context.Requests.AddAsync(newRequest);
                 await _context.SaveChangesAsync(); // Save to get the newRequest.Id
 
-                // 2. Check if it's a Label Request and save details if so
-                // We assume ID 1 is "طراحی لیبل" based on our seed data
-                if (requestDto.RequestTypeId == 1)
-                {
-                    if (requestDto.LabelDetails == null)
-                    {
-                        return BadRequest("Label details are required for this request type.");
-                    }
 
-                    var labelDetail = new LabelRequestDetail
-                    {
-                        RequestId = newRequest.Id, // Link to the main request
-                        ProductNameFA = requestDto.LabelDetails.ProductNameFA,
-                        ProductNameEN = requestDto.LabelDetails.ProductNameEN,
-                        Brand = requestDto.LabelDetails.Brand,
-                        LabelTypeId = requestDto.LabelDetails.LabelTypeId,
-                        TechnicalSpecs = requestDto.LabelDetails.TechnicalSpecs,
-                        Dimensions = requestDto.LabelDetails.Dimensions,
-                        PrintQuantity = requestDto.LabelDetails.PrintQuantity,
-                        MeasurementValue = requestDto.LabelDetails.MeasurementValue,
-                        MeasurementUnitId = requestDto.LabelDetails.MeasurementUnitId
-                    };
-                    await _context.LabelRequestDetails.AddAsync(labelDetail);
-                    await _context.SaveChangesAsync();
-                }
+                var strategy = _strategyFactory.GetStrategy(requestTypeItem.Value);
+
+                await strategy.ProcessDetailsAsync(newRequest, requestDto, _context);
+
+
+                
 
                 
                 if (files != null && files.Count > 0)

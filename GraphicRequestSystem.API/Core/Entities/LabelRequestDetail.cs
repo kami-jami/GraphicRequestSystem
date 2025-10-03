@@ -40,5 +40,7 @@ namespace GraphicRequestSystem.API.Core.Entities
 
         [Required]
         public int MeasurementUnitId { get; set; } // واحد اندازه گیری
+
+        public string? Description { get; set; }
     }
 }

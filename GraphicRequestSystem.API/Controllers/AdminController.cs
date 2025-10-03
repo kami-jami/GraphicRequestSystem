@@ -143,14 +143,6 @@ namespace GraphicRequestSystem.API.Controllers
             return Ok(dashboardDto);
         }
 
-
-        // GET: api/Admin/lookups
-        [HttpGet("lookups")]
-        public async Task<IActionResult> GetLookupLists()
-        {
-            return Ok(await _context.Lookups.Select(l => l.Name).ToListAsync());
-        }
-
         // GET: api/Admin/lookups/{listName}
         [HttpGet("lookups/{listName}")]
         public async Task<IActionResult> GetLookupItems(string listName)
@@ -162,6 +154,77 @@ namespace GraphicRequestSystem.API.Controllers
                 .ToListAsync();
 
             return Ok(items);
+        }
+
+        // GET: api/Admin/lookups
+        [HttpGet("lookups")]
+        public async Task<IActionResult> GetLookupLists()
+        {
+            return Ok(await _context.Lookups
+                .Select(l => new LookupDto { Id = l.Id, Name = l.Name })
+                .ToListAsync());
+        }
+
+        // GET: api/Admin/lookups/{lookupId}/items
+        [HttpGet("lookups/{lookupId}/items")]
+        public async Task<IActionResult> GetLookupItems(int lookupId)
+        {
+            var items = await _context.LookupItems
+                .Where(i => i.LookupId == lookupId)
+                .Select(i => new { i.Id, i.Value })
+                .ToListAsync();
+            return Ok(items);
+        }
+
+        // POST: api/Admin/lookups/{lookupId}/items
+        [HttpPost("lookups/{lookupId}/items")]
+        public async Task<IActionResult> AddLookupItem(int lookupId, [FromBody] CreateLookupItemDto dto)
+        {
+            if (!await _context.Lookups.AnyAsync(l => l.Id == lookupId))
+            {
+                return NotFound("Lookup list not found.");
+            }
+
+            var newItem = new LookupItem
+            {
+                LookupId = lookupId,
+                Value = dto.Value
+            };
+
+            await _context.LookupItems.AddAsync(newItem);
+            await _context.SaveChangesAsync();
+
+            return Ok(newItem);
+        }
+
+        // PUT: api/Admin/lookup-items/{itemId}
+        [HttpPut("lookup-items/{itemId}")]
+        public async Task<IActionResult> UpdateLookupItem(int itemId, [FromBody] CreateLookupItemDto dto)
+        {
+            var item = await _context.LookupItems.FindAsync(itemId);
+            if (item == null)
+            {
+                return NotFound("Lookup item not found.");
+            }
+
+            item.Value = dto.Value;
+            await _context.SaveChangesAsync();
+            return Ok(item);
+        }
+
+        // DELETE: api/Admin/lookup-items/{itemId}
+        [HttpDelete("lookup-items/{itemId}")]
+        public async Task<IActionResult> DeleteLookupItem(int itemId)
+        {
+            var item = await _context.LookupItems.FindAsync(itemId);
+            if (item == null)
+            {
+                return NotFound("Lookup item not found.");
+            }
+
+            _context.LookupItems.Remove(item);
+            await _context.SaveChangesAsync();
+            return NoContent(); // 204 No Content
         }
     }
 }

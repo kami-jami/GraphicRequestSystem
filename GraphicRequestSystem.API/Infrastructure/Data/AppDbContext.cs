@@ -19,8 +19,15 @@ namespace GraphicRequestSystem.API.Infrastructure.Data
         public DbSet<RequestHistory> RequestHistories { get; set; }
         public DbSet<Attachment> Attachments { get; set; }
         public DbSet<Comment> Comments { get; set; }
-
-
+        public DbSet<PackagingPhotoDetail> PackagingPhotoDetails { get; set; }
+        public DbSet<InstagramPostDetail> InstagramPostDetails { get; set; }
+        public DbSet<PromotionalVideoDetail> PromotionalVideoDetails { get; set; }
+        public DbSet<WebsiteContentDetail> WebsiteContentDetails { get; set; }
+        public DbSet<FileEditDetail> FileEditDetails { get; set; }
+        public DbSet<PromotionalItemDetail> PromotionalItemDetails { get; set; }
+        public DbSet<VisualAdDetail> VisualAdDetails { get; set; }
+        public DbSet<EnvironmentalAdDetail> EnvironmentalAdDetails { get; set; }
+        public DbSet<MiscellaneousDetail> MiscellaneousDetails { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -52,7 +59,18 @@ namespace GraphicRequestSystem.API.Infrastructure.Data
 
             // Update Seeding Logic with new names
             var requestTypeLookup = new Lookup { Id = 1, Name = "RequestTypes" };
-            modelBuilder.Entity<Lookup>().HasData(requestTypeLookup);
+            var labelTypeLookup = new Lookup { Id = 2, Name = "LabelTypes" };
+            var measurementUnitLookup = new Lookup { Id = 3, Name = "MeasurementUnits" };
+            var visualAdTypeLookup = new Lookup { Id = 4, Name = "VisualAdTypes" };
+            var envAdTypeLookup = new Lookup { Id = 5, Name = "EnvironmentalAdTypes" };
+            var webContentTypeLookup = new Lookup { Id = 6, Name = "WebsiteContentTypes" };
+            modelBuilder.Entity<Lookup>().HasData(
+                requestTypeLookup,
+                labelTypeLookup,
+                measurementUnitLookup,
+                visualAdTypeLookup,
+                envAdTypeLookup,
+                webContentTypeLookup);
 
             modelBuilder.Entity<LookupItem>().HasData(
                 new LookupItem { Id = 1, LookupId = 1, Value = "طراحی لیبل" },
@@ -65,6 +83,54 @@ namespace GraphicRequestSystem.API.Infrastructure.Data
                 new LookupItem { Id = 8, LookupId = 1, Value = "تبلیغات بصری" },
                 new LookupItem { Id = 9, LookupId = 1, Value = "تبلیغات محیطی" },
                 new LookupItem { Id = 10, LookupId = 1, Value = "متفرقه" }
+            );
+
+            modelBuilder.Entity<LookupItem>().HasData(
+                new LookupItem { Id = 11, LookupId = 2, Value = "سم" },
+                new LookupItem { Id = 12, LookupId = 2, Value = "کود" },
+                new LookupItem { Id = 13, LookupId = 2, Value = "بذر" },
+                new LookupItem { Id = 14, LookupId = 2, Value = "سایر" }
+            );
+
+            modelBuilder.Entity<LookupItem>().HasData(
+                new LookupItem { Id = 15, LookupId = 3, Value = "عدد" },
+                new LookupItem { Id = 16, LookupId = 3, Value = "بسته" },
+                new LookupItem { Id = 17, LookupId = 3, Value = "لیتر" },
+                new LookupItem { Id = 18, LookupId = 3, Value = "کارتن" },
+                new LookupItem { Id = 19, LookupId = 3, Value = "کیلوگرم" },
+                new LookupItem { Id = 20, LookupId = 3, Value = "گرم" },
+                new LookupItem { Id = 21, LookupId = 3, Value = "سی‌سی" },
+                new LookupItem { Id = 22, LookupId = 3, Value = "متر" },
+                new LookupItem { Id = 23, LookupId = 3, Value = "سانتی‌متر" },
+                new LookupItem { Id = 24, LookupId = 3, Value = "میلی‌متر" },
+                new LookupItem { Id = 25, LookupId = 3, Value = "اینچ" },
+                new LookupItem { Id = 26, LookupId = 3, Value = "سایر" }
+            );
+
+            modelBuilder.Entity<LookupItem>().HasData(
+                new LookupItem { Id = 27, LookupId = 4, Value = "کاتالوگ" },
+                new LookupItem { Id = 28, LookupId = 4, Value = "بروشور" },
+                new LookupItem { Id = 29, LookupId = 4, Value = "لوگو" },
+                new LookupItem { Id = 30, LookupId = 4, Value = "پوستر" },
+                new LookupItem { Id = 31, LookupId = 4, Value = "کارت ویزیت" },
+                new LookupItem { Id = 32, LookupId = 4, Value = "سایر" }
+            );
+
+            modelBuilder.Entity<LookupItem>().HasData(
+                new LookupItem { Id = 33, LookupId = 5, Value = "بنر" },
+                new LookupItem { Id = 34, LookupId = 5, Value = "بیلبورد" },
+                new LookupItem { Id = 35, LookupId = 5, Value = "مش" },
+                new LookupItem { Id = 36, LookupId = 5, Value = "رول‌آپ" },
+                new LookupItem { Id = 37, LookupId = 5, Value = "پرچم" },
+                new LookupItem { Id = 38, LookupId = 5, Value = "شاسی" },
+                new LookupItem { Id = 39, LookupId = 5, Value = "سایر" }
+            );
+
+            modelBuilder.Entity<LookupItem>().HasData(
+                new LookupItem { Id = 40, LookupId = 6, Value = "مقاله" },
+                new LookupItem { Id = 41, LookupId = 6, Value = "خبر" },
+                new LookupItem { Id = 42, LookupId = 6, Value = "صفحه محصول" },
+                new LookupItem { Id = 43, LookupId = 6, Value = "سایر" }
             );
 
             modelBuilder.Entity<SystemSetting>().HasData(

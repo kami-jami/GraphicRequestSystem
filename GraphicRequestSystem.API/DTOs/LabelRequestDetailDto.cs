@@ -20,5 +20,7 @@ namespace GraphicRequestSystem.API.DTOs
         public required string MeasurementValue { get; set; }
         [Required]
         public int MeasurementUnitId { get; set; }
+
+        public string? Description { get; set; }
     }
 }

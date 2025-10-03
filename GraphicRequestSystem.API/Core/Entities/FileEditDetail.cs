@@ -3,20 +3,15 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace GraphicRequestSystem.API.Core.Entities
 {
-    public class PackagingPhotoDetail
+    public class FileEditDetail
     {
         [Key]
         public int RequestId { get; set; }
-
         [ForeignKey("RequestId")]
         public Request Request { get; set; } = null!;
-
         [Required]
-        public required string ProductName { get; set; }
-
+        public required string Topic { get; set; }
         [Required]
-        public required string Brand { get; set; }
-
-        public string? Description { get; set; }
+        public required string Description { get; set; }
     }
 }
