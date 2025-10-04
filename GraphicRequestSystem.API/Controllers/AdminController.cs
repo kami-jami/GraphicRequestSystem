@@ -156,25 +156,25 @@ namespace GraphicRequestSystem.API.Controllers
             return Ok(items);
         }
 
-        // GET: api/Admin/lookups
-        [HttpGet("lookups")]
-        public async Task<IActionResult> GetLookupLists()
-        {
-            return Ok(await _context.Lookups
-                .Select(l => new LookupDto { Id = l.Id, Name = l.Name })
-                .ToListAsync());
-        }
+        //// GET: api/Admin/lookups
+        //[HttpGet("lookups")]
+        //public async Task<IActionResult> GetLookupLists()
+        //{
+        //    return Ok(await _context.Lookups
+        //        .Select(l => new LookupDto { Id = l.Id, Name = l.Name })
+        //        .ToListAsync());
+        //}
 
-        // GET: api/Admin/lookups/{lookupId}/items
-        [HttpGet("lookups/{lookupId}/items")]
-        public async Task<IActionResult> GetLookupItems(int lookupId)
-        {
-            var items = await _context.LookupItems
-                .Where(i => i.LookupId == lookupId)
-                .Select(i => new { i.Id, i.Value })
-                .ToListAsync();
-            return Ok(items);
-        }
+        //// GET: api/Admin/lookups/{lookupId}/items
+        //[HttpGet("lookups/{lookupId}/items")]
+        //public async Task<IActionResult> GetLookupItems(int lookupId)
+        //{
+        //    var items = await _context.LookupItems
+        //        .Where(i => i.LookupId == lookupId)
+        //        .Select(i => new { i.Id, i.Value })
+        //        .ToListAsync();
+        //    return Ok(items);
+        //}
 
         // POST: api/Admin/lookups/{lookupId}/items
         [HttpPost("lookups/{lookupId}/items")]

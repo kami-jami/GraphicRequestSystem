@@ -30,7 +30,17 @@ namespace GraphicRequestSystem.API.Controllers
         [HttpGet]
         public async Task<IActionResult> GetRequests()
         {
-            var requests = await _context.Requests.ToListAsync();
+            var requests = await _context.Requests
+        .Include(r => r.Requester) 
+        .Select(r => new {
+            r.Id,
+            r.Title,
+            r.Status,
+            r.Priority,
+            RequesterName = r.Requester.UserName,
+            r.DueDate
+        })
+        .ToListAsync();
             return Ok(requests);
         }
 
@@ -387,6 +397,41 @@ namespace GraphicRequestSystem.API.Controllers
             await _context.SaveChangesAsync();
 
             return Ok(comment);
+        }
+
+        // GET: api/Requests/{id}
+        [HttpGet("{id}")]
+        public async Task<IActionResult> GetRequestById(int id)
+        {
+            var request = await _context.Requests
+                .Include(r => r.Requester) // واکشی نام درخواست‌دهنده
+                .Include(r => r.Designer)  // واکشی نام طراح
+                .Include(r => r.Approver)  // واکشی نام تایید کننده
+                .FirstOrDefaultAsync(r => r.Id == id);
+
+            if (request == null)
+            {
+                return NotFound();
+            }
+
+            // TODO: در آینده می‌توانیم اطلاعات اختصاصی (جزئیات لیبل و...) و پیوست‌ها را هم اینجا اضافه کنیم
+
+            // فعلا اطلاعات اصلی را برمی‌گردانیم
+            var result = new
+            {
+                request.Id,
+                request.Title,
+                request.Status,
+                request.Priority,
+                RequesterName = request.Requester.UserName,
+                DesignerName = request.Designer?.UserName,
+                ApproverName = request.Approver?.UserName,
+                request.DueDate,
+                request.SubmissionDate,
+                request.CompletionDate
+            };
+
+            return Ok(result);
         }
     }
 }

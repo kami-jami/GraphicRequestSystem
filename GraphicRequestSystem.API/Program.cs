@@ -14,6 +14,8 @@ using GraphicRequestSystem.API.Infrastructure.Strategies;
 
 var builder = WebApplication.CreateBuilder(args);
 
+var myAllowSpecificOrigins = "_myAllowSpecificOrigins";
+
 // Add services to the container.
 
 builder.Services.AddScoped<IRequestDetailStrategy, LabelRequestStrategy>();
@@ -56,6 +58,17 @@ builder.Services.AddIdentity<AppUser, IdentityRole>(options =>
 })
 .AddEntityFrameworkStores<AppDbContext>()
 .AddDefaultTokenProviders();
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy(name: myAllowSpecificOrigins,
+        policy =>
+        {
+            policy.WithOrigins("http://localhost:5173")
+                .AllowAnyHeader()
+                .AllowAnyMethod();
+        });
+});
 
 
 builder.Services.AddAuthentication(options =>
@@ -137,6 +150,8 @@ RecurringJob.AddOrUpdate<DeadlineCheckerJob>(
     Cron.Hourly);
 
 app.UseHttpsRedirection();
+
+app.UseCors(myAllowSpecificOrigins);
 
 app.UseAuthentication();
 

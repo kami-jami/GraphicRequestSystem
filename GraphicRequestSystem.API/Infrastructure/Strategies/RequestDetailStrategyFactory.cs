@@ -10,7 +10,7 @@ namespace GraphicRequestSystem.API.Infrastructure.Strategies
         public RequestDetailStrategyFactory(IEnumerable<IRequestDetailStrategy> strategies)
         {
             _strategies = strategies.ToDictionary(s => s.StrategyName);
-            _defaultStrategy = (DefaultRequestStrategy)_strategies.First(s => s.GetType() == typeof(DefaultRequestStrategy)).Value;
+            _defaultStrategy = (DefaultRequestStrategy)_strategies.FirstOrDefault(s => s.GetType() == typeof(DefaultRequestStrategy)).Value;
         }
 
         public IRequestDetailStrategy GetStrategy(string requestTypeName)

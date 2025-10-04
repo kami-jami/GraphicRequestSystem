@@ -8,7 +8,7 @@ namespace GraphicRequestSystem.API.Infrastructure.Strategies
 {
     public class PromotionalVideoStrategy : IRequestDetailStrategy
     {
-        public string StrategyName => throw new NotImplementedException();
+        public string StrategyName => RequestTypeValues.PromotionalVideo;
 
         public async Task ProcessDetailsAsync(Request mainRequest, CreateRequestDto dto, AppDbContext context)
         {
