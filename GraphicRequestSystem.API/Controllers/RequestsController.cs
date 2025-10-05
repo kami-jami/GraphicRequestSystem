@@ -404,9 +404,9 @@ namespace GraphicRequestSystem.API.Controllers
         public async Task<IActionResult> GetRequestById(int id)
         {
             var request = await _context.Requests
-                .Include(r => r.Requester) // واکشی نام درخواست‌دهنده
-                .Include(r => r.Designer)  // واکشی نام طراح
-                .Include(r => r.Approver)  // واکشی نام تایید کننده
+                .Include(r => r.Requester)
+                .Include(r => r.Designer)
+                .Include(r => r.Approver)
                 .FirstOrDefaultAsync(r => r.Id == id);
 
             if (request == null)
@@ -414,24 +414,99 @@ namespace GraphicRequestSystem.API.Controllers
                 return NotFound();
             }
 
-            // TODO: در آینده می‌توانیم اطلاعات اختصاصی (جزئیات لیبل و...) و پیوست‌ها را هم اینجا اضافه کنیم
-
-            // فعلا اطلاعات اصلی را برمی‌گردانیم
             var result = new
             {
                 request.Id,
                 request.Title,
                 request.Status,
                 request.Priority,
+
+                // --- بخش اصلاح شده ---
                 RequesterName = request.Requester.UserName,
                 DesignerName = request.Designer?.UserName,
                 ApproverName = request.Approver?.UserName,
+
+                // ID ها را هم اضافه می‌کنیم
+                request.RequesterId,
+                request.DesignerId,
+                request.ApproverId,
+                // --- پایان بخش اصلاح شده ---
+
                 request.DueDate,
                 request.SubmissionDate,
                 request.CompletionDate
             };
 
             return Ok(result);
+        }
+
+        // PATCH: api/Requests/{id}/resubmit
+        [HttpPatch("{id}/resubmit")]
+        public async Task<IActionResult> ResubmitRequest(int id)
+        {
+            var request = await _context.Requests.FindAsync(id);
+            if (request == null) return NotFound();
+
+            // این عملیات فقط برای درخواست‌های برگشت خورده مجاز است
+            if (request.Status != RequestStatus.PendingCorrection)
+            {
+                return BadRequest("This request cannot be resubmitted.");
+            }
+
+            var newStatus = RequestStatus.DesignInProgress;
+
+            var previousStatus = request.Status;
+            request.Status = newStatus;
+
+            // ثبت در تاریخچه
+            var historyLog = new RequestHistory
+            {
+                RequestId = id,
+                ActionDate = DateTime.UtcNow,
+                ActorId = request.RequesterId,
+                PreviousStatus = previousStatus,
+                NewStatus = request.Status,
+                Comment = "درخواست پس از اصلاحات، مجدداً برای طراح ارسال شد." // متن کامنت هم بهتر شد
+            };
+            await _context.RequestHistories.AddAsync(historyLog);
+            await _context.SaveChangesAsync();
+
+            return Ok(request);
+        }
+
+        // PATCH: api/Requests/{id}/resubmit-for-approval
+        [HttpPatch("{id}/resubmit-for-approval")]
+        public async Task<IActionResult> ResubmitForApproval(int id)
+        {
+            var request = await _context.Requests.FindAsync(id);
+            if (request == null) return NotFound();
+
+            // این عملیات فقط برای درخواست‌هایی که نیاز به طراحی مجدد دارند مجاز است
+            if (request.Status != RequestStatus.PendingRedesign)
+            {
+                return BadRequest("This request cannot be resubmitted for approval.");
+            }
+
+            // TODO: می‌توانیم چک کنیم که فقط خود طراح این کار را انجام دهد
+
+            var previousStatus = request.Status;
+            var newStatus = RequestStatus.PendingApproval; // مستقیماً به صف تایید برمی‌گردد
+
+            request.Status = newStatus;
+
+            var historyLog = new RequestHistory
+            {
+                RequestId = id,
+                ActionDate = DateTime.UtcNow,
+                ActorId = request.DesignerId, // اقدام توسط طراح
+                PreviousStatus = previousStatus,
+                NewStatus = newStatus,
+                Comment = "طراحی پس از اصلاحات، مجدداً برای تایید ارسال شد."
+            };
+            await _context.RequestHistories.AddAsync(historyLog);
+            await _context.SaveChangesAsync();
+
+            return Ok(request);
         }
     }
 }

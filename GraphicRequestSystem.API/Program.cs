@@ -12,6 +12,8 @@ using System.Text;
 using GraphicRequestSystem.API.Core.Interfaces;
 using GraphicRequestSystem.API.Infrastructure.Strategies;
 
+using System.IdentityModel.Tokens.Jwt;
+
 var builder = WebApplication.CreateBuilder(args);
 
 var myAllowSpecificOrigins = "_myAllowSpecificOrigins";
@@ -70,6 +72,7 @@ builder.Services.AddCors(options =>
         });
 });
 
+//JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();
 
 builder.Services.AddAuthentication(options =>
 {

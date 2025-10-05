@@ -59,16 +59,16 @@ namespace GraphicRequestSystem.API.Controllers
             {
                 var authClaims = new List<Claim>
                 {
-                    new Claim(ClaimTypes.Name, user.UserName),
-                    new Claim(ClaimTypes.NameIdentifier, user.Id),
+                    new Claim("id", user.Id),
+                    new Claim("username", user.UserName),
                     new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
                 };
 
-                
+
                 var userRoles = await _userManager.GetRolesAsync(user);
                 foreach (var userRole in userRoles)
                 {
-                    authClaims.Add(new Claim(ClaimTypes.Role, userRole));
+                    authClaims.Add(new Claim("role", userRole));
                 }
                 
 

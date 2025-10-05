@@ -15,6 +15,7 @@ export const apiSlice = createApi({
       return headers;
     },
   }),
+  tagTypes: ['Comments', 'Request'],
   endpoints: (builder) => ({
     login: builder.mutation({
       query: (credentials) => ({
@@ -44,7 +45,20 @@ export const apiSlice = createApi({
         query: (lookupId) => `/lookup/${lookupId}/items`,
     }),
     getRequestById: builder.query<any, number>({
-        query: (id) => `/requests/${id}`,
+      query: (id) => `/requests/${id}`,
+      providesTags: (result, error, id) => [{ type: 'Request', id }],
+    }),
+    getRequestComments: builder.query<any[], number>({
+        query: (id) => `/requests/${id}/comments`,
+        providesTags: ['Comments'], 
+    }),
+    addComment: builder.mutation<any, { requestId: number; content: string }>({
+        query: ({ requestId, content }) => ({
+            url: `/requests/${requestId}/comments`,
+            method: 'POST',
+            body: { content },
+        }),
+        invalidatesTags: ['Comments'], 
     }),
     createRequest: builder.mutation<any, FormData>({ 
       query: (requestData) => ({
@@ -54,6 +68,56 @@ export const apiSlice = createApi({
           formData: true, 
       }),
     }),
+
+    assignRequest: builder.mutation<any, { requestId: number; designerId: string }>({
+      query: ({ requestId, designerId }) => ({
+        url: `/requests/${requestId}/assign`,
+        method: 'PATCH',
+        body: { designerId },
+      }),
+      invalidatesTags: (result, error, arg) => [{ type: 'Request', id: arg.requestId }],
+    }),
+    returnRequest: builder.mutation<any, { requestId: number; actorId: string; comment: string }>({
+      query: ({ requestId, ...body }) => ({
+        url: `/requests/${requestId}/return`,
+        method: 'PATCH',
+        body,
+      }),
+      invalidatesTags: (result, error, arg) => [{ type: 'Request', id: arg.requestId }],
+    }),
+    completeDesign: builder.mutation<any, { requestId: number; actorId: string; needsApproval: boolean; approverId?: string; comment?: string }>({
+      query: ({ requestId, ...body }) => ({
+        url: `/requests/${requestId}/complete-design`,
+        method: 'PATCH',
+        body,
+      }),
+      invalidatesTags: (result, error, arg) => [{ type: 'Request', id: arg.requestId }],
+    }),
+    processApproval: builder.mutation<any, { requestId: number; actorId: string; isApproved: boolean; comment?: string }>({
+      query: ({ requestId, ...body }) => ({
+        url: `/requests/${requestId}/process-approval`,
+        method: 'PATCH',
+        body,
+      }),
+      invalidatesTags: (result, error, arg) => [{ type: 'Request', id: arg.requestId }],
+    }),
+
+    resubmitRequest: builder.mutation<any, { requestId: number }>({
+        query: ({ requestId }) => ({
+            url: `/requests/${requestId}/resubmit`,
+            method: 'PATCH',
+        }),
+        invalidatesTags: (result, error, arg) => [{ type: 'Request', id: arg.requestId }],
+    }),
+
+    resubmitForApproval: builder.mutation<any, { requestId: number }>({
+        query: ({ requestId }) => ({
+            url: `/requests/${requestId}/resubmit-for-approval`,
+            method: 'PATCH',
+        }),
+        invalidatesTags: (result, error, arg) => [{ type: 'Request', id: arg.requestId }],
+    }),
+
   }),
 });
 
@@ -63,5 +127,13 @@ export const { useLoginMutation,
   useGetLookupListsQuery,
   useGetLookupItemsQuery,
   useCreateRequestMutation,
-  useGetRequestByIdQuery
+  useGetRequestByIdQuery,
+  useGetRequestCommentsQuery,
+  useAddCommentMutation,
+  useAssignRequestMutation,
+  useReturnRequestMutation,
+  useCompleteDesignMutation,
+  useProcessApprovalMutation,
+  useResubmitRequestMutation,
+  useResubmitForApprovalMutation
 } = apiSlice;
