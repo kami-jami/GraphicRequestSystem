@@ -3,7 +3,6 @@ import { Box, Button, TextField, Typography, CircularProgress, MenuItem, Select,
 import { useGetLookupItemsQuery, useGetLookupListsQuery, useCreateRequestMutation, useGetAvailabilityQuery } from '../services/apiSlice';
 import { useNavigate } from 'react-router-dom';
 
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import moment from 'moment-jalaali';
 import type { Moment } from 'moment-jalaali';
@@ -53,23 +52,35 @@ const CreateRequestPage = () => {
     });
     // ... سایر state ها
 
-    const startDate = moment().toISOString();
-    const endDate = moment().add(30, 'days').toISOString();
-    const { data: availabilityData, isLoading: isLoadingAvailability } = useGetAvailabilityQuery({ startDate, endDate });
+    // const startDate = moment().toISOString();
+    // const endDate = moment().add(30, 'days').toISOString();
+    // const startDate = moment().format('YYYY-MM-DD');
+    // const endDate = moment().add(30, 'days').format('YYYY-MM-DD');
+    const startDate = moment().startOf('day').toDate();
+    const endDate = moment().add(30, 'days').endOf('day').toDate();
 
-    const shouldDisableDate = (day: Moment) => {
-        if (!availabilityData) return false;
+    const { data: availabilityData, isLoading: isLoadingAvailability, error: availabilityError } =
+        useGetAvailabilityQuery({
+            startDate: startDate.toISOString(),
+            endDate: endDate.toISOString()
+        });
 
-        const dateString = day.format('jYYYY-jMM-jDD');
-        const dayAvailability = availabilityData.find(d => moment(d.date).format('jYYYY-jMM-jDD') === dateString);
+    // const { data: availabilityData, isLoading: isLoadingAvailability } = useGetAvailabilityQuery({ startDate, endDate });
+
+    const shouldDisableDate = (date: Moment) => {
+        if (!availabilityData || !Array.isArray(availabilityData)) return false;
+
+        const dateString = date.toDate().toISOString().split('T')[0]; // YYYY-MM-DD
+        const dayAvailability = availabilityData.find((d: any) => {
+            const apiDate = new Date(d.date).toISOString().split('T')[0];
+            return apiDate === dateString;
+        });
 
         if (!dayAvailability) return false;
 
-        // اگر اولویت عادی انتخاب شده، ظرفیت عادی را چک کن
         if (priority === 0 && !dayAvailability.isNormalSlotAvailable) {
             return true;
         }
-        // اگر اولویت فوری انتخاب شده، ظرفیت فوری را چک کن
         if (priority === 1 && !dayAvailability.isUrgentSlotAvailable) {
             return true;
         }
@@ -99,6 +110,12 @@ const CreateRequestPage = () => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        if (dueDate && shouldDisableDate(dueDate)) {
+            alert('تاریخ انتخابی در دسترس نیست. لطفا تاریخ دیگری انتخاب کنید.');
+            return;
+        }
+
         const formData = new FormData();
 
         formData.append('title', title);
@@ -155,6 +172,10 @@ const CreateRequestPage = () => {
             alert('خطا در ثبت درخواست');
         }
     };
+
+    if (availabilityError) {
+        console.error('Availability API error:', availabilityError);
+    }
 
     if (isLoadingRequestTypesLookup || isLoadingLabelTypes || isLoadingMeasurementUnits ||
         isLoadingPriorityLookup || isLoadingVisualAdTypes || isLoadingEnvironmentalAdTypes ||
@@ -224,19 +245,20 @@ const CreateRequestPage = () => {
                 value={dueDate}
                 onChange={(newValue) => setDueDate(newValue)}
                 shouldDisableDate={shouldDisableDate}
-                // format="jYYYY/jMM/jDD"
-                // ampm={false}
-                // enableAccessibleFieldDOMStructure={false}
-                // slots={{
-                //     textField: (params) => (
-                //         <TextField
-                //             {...params}
-                //             fullWidth
-                //             sx={{ mb: 2 }}
-                //         />
-                //     )
-                // }}
-                sx={{ mb: 2, width: '100%' }}
+                format="jYYYY/jMM/jDD - HH:mm"
+                ampm={false}
+                enableAccessibleFieldDOMStructure={false}
+                slots={{
+                    textField: (params) => (
+                        <TextField
+                            {...params}
+                            fullWidth
+                            sx={{ mb: 2 }}
+                            helperText={dueDate && shouldDisableDate(dueDate) ? "این تاریخ در دسترس نیست" : ""}
+                            error={dueDate && shouldDisableDate(dueDate)}
+                        />
+                    )
+                }}
             />
 
             <TextField

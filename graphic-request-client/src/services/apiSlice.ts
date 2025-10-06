@@ -2,19 +2,33 @@ import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import { setCredentials } from '../pages/auth/authSlice';
 import type { RootState } from './store';
 
+// یک baseQuery خام ایجاد می‌کنیم
+const baseQuery = fetchBaseQuery({
+  baseUrl: 'https://localhost:7088/api',
+  prepareHeaders: (headers, { getState }) => {
+    const token = (getState() as RootState).auth.token;
+    if (token) {
+      headers.set('authorization', `Bearer ${token}`);
+    }
+    return headers;
+  },
+});
+
+// یک wrapper دور baseQuery برای مدیریت‌های خاص مثل لاگ‌اوت خودکار
+const baseQueryWithReauth: typeof baseQuery = async (args, api, extraOptions) => {
+  let result = await baseQuery(args, api, extraOptions);
+  if (result.error && result.error.status === 401) {
+    // در صورت خطای 401، می‌توانیم اینجا منطق رفرش توکن یا لاگ‌اوت را اضافه کنیم
+    // فعلا فقط برای دیباگ لاگ می‌زنیم
+    console.error('Unauthorized request:', result.error);
+  }
+  return result;
+};
+
+
 export const apiSlice = createApi({
   reducerPath: 'api',
-  baseQuery: fetchBaseQuery({
-    baseUrl: 'https://localhost:7088/api',
-    prepareHeaders: (headers, { getState }) => {
-      // توکن را از state بخوان
-      const token = (getState() as RootState).auth.token;
-      if (token) {
-        headers.set('authorization', `Bearer ${token}`);
-      }
-      return headers;
-    },
-  }),
+  baseQuery: baseQueryWithReauth,
   tagTypes: ['Comments', 'Request'],
   endpoints: (builder) => ({
     login: builder.mutation({
@@ -65,8 +79,9 @@ export const apiSlice = createApi({
           url: '/requests',
           method: 'POST',
           body: requestData,
-          formData: true, 
+          // formData: true, 
       }),
+      invalidatesTags: ['Request']
     }),
 
     assignRequest: builder.mutation<any, { requestId: number; designerId: string }>({
