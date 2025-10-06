@@ -71,6 +71,14 @@ namespace GraphicRequestSystem.API.Controllers
                     return BadRequest("Invalid Request Type ID.");
                 }
 
+                var defaultDesignerId = (await _context.SystemSettings
+                    .FirstOrDefaultAsync(s => s.SettingKey == "DefaultDesignerId"))?.SettingValue;
+
+                if (string.IsNullOrEmpty(defaultDesignerId))
+                {
+                    return StatusCode(500, "Default designer is not configured in system settings.");
+                }
+
 
                 // 1. Create and save the main Request object
                 var newRequest = new Request
@@ -80,7 +88,10 @@ namespace GraphicRequestSystem.API.Controllers
                     Priority = requestDto.Priority,
                     RequesterId = requesterId,
                     DueDate = requestDto.DueDate,
-                    Status = RequestStatus.Submitted,
+
+                    // درخواست به صورت خودکار تخصیص و وضعیت آن تغییر می‌کند
+                    Status = RequestStatus.DesignInProgress,
+                    DesignerId = defaultDesignerId,
                     SubmissionDate = DateTime.UtcNow
                 };
                 await _context.Requests.AddAsync(newRequest);

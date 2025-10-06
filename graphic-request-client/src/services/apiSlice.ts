@@ -118,6 +118,10 @@ export const apiSlice = createApi({
         invalidatesTags: (result, error, arg) => [{ type: 'Request', id: arg.requestId }],
     }),
 
+    getAvailability: builder.query<any[], { startDate: string; endDate: string }>({
+        query: ({ startDate, endDate }) => `/availability?startDate=${startDate}&endDate=${endDate}`,
+    }),
+
   }),
 });
 
@@ -135,5 +139,6 @@ export const { useLoginMutation,
   useCompleteDesignMutation,
   useProcessApprovalMutation,
   useResubmitRequestMutation,
-  useResubmitForApprovalMutation
+  useResubmitForApprovalMutation,
+  useGetAvailabilityQuery
 } = apiSlice;

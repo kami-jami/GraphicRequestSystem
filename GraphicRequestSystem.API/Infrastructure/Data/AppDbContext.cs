@@ -137,7 +137,9 @@ namespace GraphicRequestSystem.API.Infrastructure.Data
                 // new SystemSetting { Id = 1, SettingKey = "DeadlineWarningDays", SettingValue = "2" },
                 new SystemSetting { Id = 2, SettingKey = "MaxNormalRequestsPerDay", SettingValue = "5" },
                 new SystemSetting { Id = 3, SettingKey = "MaxUrgentRequestsPerDay", SettingValue = "2" },
-                new SystemSetting { Id = 4, SettingKey = "OrderableDaysInFuture", SettingValue = "30" }
+                new SystemSetting { Id = 4, SettingKey = "OrderableDaysInFuture", SettingValue = "30" },
+                new SystemSetting { Id = 5, SettingKey = "DefaultDesignerId", SettingValue = "b5fc3c65-9d43-4558-bb11-dd82eba9149d" }
+
             );
         }
     }

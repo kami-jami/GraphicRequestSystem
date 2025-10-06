@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Box, Button, TextField, Typography, CircularProgress, MenuItem, Select, FormControl, InputLabel } from '@mui/material';
-import { useGetLookupItemsQuery, useGetLookupListsQuery, useCreateRequestMutation } from '../services/apiSlice';
+import { useGetLookupItemsQuery, useGetLookupListsQuery, useCreateRequestMutation, useGetAvailabilityQuery } from '../services/apiSlice';
 import { useNavigate } from 'react-router-dom';
 
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import moment from 'moment-jalaali';
+import type { Moment } from 'moment-jalaali';
 
 // یک آبجکت برای نگهداری مقادیر ثابت RequestTypeValues (برای جلوگیری از Magic Strings)
 // بهتر است این را به یک فایل جداگانه در utils یا hooks منتقل کنیم در آینده
@@ -51,6 +52,30 @@ const CreateRequestPage = () => {
         topic: '', description: ''
     });
     // ... سایر state ها
+
+    const startDate = moment().toISOString();
+    const endDate = moment().add(30, 'days').toISOString();
+    const { data: availabilityData, isLoading: isLoadingAvailability } = useGetAvailabilityQuery({ startDate, endDate });
+
+    const shouldDisableDate = (day: Moment) => {
+        if (!availabilityData) return false;
+
+        const dateString = day.format('jYYYY-jMM-jDD');
+        const dayAvailability = availabilityData.find(d => moment(d.date).format('jYYYY-jMM-jDD') === dateString);
+
+        if (!dayAvailability) return false;
+
+        // اگر اولویت عادی انتخاب شده، ظرفیت عادی را چک کن
+        if (priority === 0 && !dayAvailability.isNormalSlotAvailable) {
+            return true;
+        }
+        // اگر اولویت فوری انتخاب شده، ظرفیت فوری را چک کن
+        if (priority === 1 && !dayAvailability.isUrgentSlotAvailable) {
+            return true;
+        }
+
+        return false;
+    };
 
     // واکشی لیست انواع درخواست (Lookup ID 1)
     const { data: requestTypesLookup, isLoading: isLoadingRequestTypesLookup } = useGetLookupItemsQuery(1);
@@ -131,7 +156,9 @@ const CreateRequestPage = () => {
         }
     };
 
-    if (isLoadingRequestTypesLookup || isLoadingLabelTypes || isLoadingMeasurementUnits || isLoadingPriorityLookup || isLoadingVisualAdTypes || isLoadingEnvironmentalAdTypes || isLoadingWebsiteContentTypes) {
+    if (isLoadingRequestTypesLookup || isLoadingLabelTypes || isLoadingMeasurementUnits ||
+        isLoadingPriorityLookup || isLoadingVisualAdTypes || isLoadingEnvironmentalAdTypes ||
+        isLoadingWebsiteContentTypes || isLoadingAvailability) {
         return <CircularProgress />;
     }
 
@@ -196,18 +223,20 @@ const CreateRequestPage = () => {
                 label="تاریخ تحویل (اختیاری)"
                 value={dueDate}
                 onChange={(newValue) => setDueDate(newValue)}
-                format="jYYYY/jMM/jDD"
-                ampm={false}
-                enableAccessibleFieldDOMStructure={false}
-                slots={{
-                    textField: (params) => (
-                        <TextField
-                            {...params}
-                            fullWidth
-                            sx={{ mb: 2 }}
-                        />
-                    )
-                }}
+                shouldDisableDate={shouldDisableDate}
+                // format="jYYYY/jMM/jDD"
+                // ampm={false}
+                // enableAccessibleFieldDOMStructure={false}
+                // slots={{
+                //     textField: (params) => (
+                //         <TextField
+                //             {...params}
+                //             fullWidth
+                //             sx={{ mb: 2 }}
+                //         />
+                //     )
+                // }}
+                sx={{ mb: 2, width: '100%' }}
             />
 
             <TextField

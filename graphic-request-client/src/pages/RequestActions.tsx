@@ -91,11 +91,11 @@ const RequestActions = ({ request }: { request: any }) => {
             <Box sx={{ mt: 3, p: 2, border: '1px solid', borderColor: 'grey.300', borderRadius: 1 }}>
                 <Typography variant="h6" gutterBottom>عملیات</Typography>
 
-                {request.status === 0 && user.roles.includes('Designer') && (
+                {/* {request.status === 0 && user.roles.includes('Designer') && (
                     <Button variant="contained" onClick={handleAssign} disabled={isAssigning}>
                         {isAssigning ? <CircularProgress size={24} /> : 'این درخواست را به من تخصیص بده'}
                     </Button>
-                )}
+                )} */}
 
                 {request.status === 3 && user.id === request.designerId && (
                     <Box sx={{ display: 'flex', gap: 2 }}>
