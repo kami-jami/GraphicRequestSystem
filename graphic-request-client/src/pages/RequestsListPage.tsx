@@ -1,14 +1,21 @@
 import { useGetRequestsQuery } from '../services/apiSlice';
 import { Box, CircularProgress, Typography } from '@mui/material';
-import { DataGrid } from '@mui/x-data-grid';
-import type { GridColDef } from '@mui/x-data-grid';
+import { DataGrid } from '@mui/x-data-grid'
+import type { GridColDef, GridRenderCellParams } from '@mui/x-data-grid';
 import { mapStatusToPersian, mapPriorityToPersian } from '../utils/mappers';
 import { useNavigate } from 'react-router-dom';
 import moment from 'moment-jalaali';
 
 // تعریف ستون‌های جدول
 const columns: GridColDef[] = [
-    { field: 'id', headerName: 'ID', width: 90 },
+    {
+        field: 'id',
+        headerName: 'ردیف',
+        width: 90,
+        renderCell: (params: GridRenderCellParams) => {
+            return params.api.getRowIndexRelativeToVisibleRows(params.id) + 1;
+        },
+    },
     { field: 'title', headerName: 'عنوان درخواست', width: 250 },
     {
         field: 'status',

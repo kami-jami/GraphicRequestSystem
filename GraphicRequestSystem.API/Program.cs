@@ -12,7 +12,6 @@ using System.Text;
 using GraphicRequestSystem.API.Core.Interfaces;
 using GraphicRequestSystem.API.Infrastructure.Strategies;
 
-using System.IdentityModel.Tokens.Jwt;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -145,14 +144,10 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHangfireDashboard();
-
-RecurringJob.AddOrUpdate<DeadlineCheckerJob>(
-    "deadline-checker-job",
-    job => job.CheckForUpcomingDeadlines(),
-    Cron.Hourly);
-
 app.UseHttpsRedirection();
+
+
+app.UseRouting();
 
 app.UseCors(myAllowSpecificOrigins);
 
@@ -161,6 +156,12 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+
+app.UseHangfireDashboard();
+RecurringJob.AddOrUpdate<DeadlineCheckerJob>(
+    "deadline-checker-job",
+    job => job.CheckForUpcomingDeadlines(),
+    Cron.Hourly);
 
 // Seed roles
 using (var scope = app.Services.CreateScope())

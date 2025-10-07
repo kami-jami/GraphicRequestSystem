@@ -23,7 +23,7 @@ namespace GraphicRequestSystem.API.Controllers
         public RequestsController(AppDbContext context, RequestDetailStrategyFactory strategyFactory)
         {
             _context = context;
-            _strategyFactory = strategyFactory; // ۳. مقداردهی کنید
+            _strategyFactory = strategyFactory;
         }
 
         // GET: api/Requests
@@ -49,7 +49,7 @@ namespace GraphicRequestSystem.API.Controllers
         [HttpPost]
         public async Task<IActionResult> CreateRequest([FromForm] CreateRequestDto requestDto, List<IFormFile> files)
         {
-            var requesterId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var requesterId = User.FindFirstValue("id");
             var requestTypeItem = await _context.LookupItems.FindAsync(requestDto.RequestTypeId);
             if (requestTypeItem == null)
             {
@@ -58,6 +58,32 @@ namespace GraphicRequestSystem.API.Controllers
             if (string.IsNullOrEmpty(requesterId))
             {
                 return Unauthorized();
+            }
+
+            if (requestDto.DueDate.HasValue)
+            {
+                var settings = await _context.SystemSettings.ToDictionaryAsync(s => s.SettingKey, s => s.SettingValue);
+                var dateToCheck = requestDto.DueDate.Value.Date;
+
+                var requestCountForDay = await _context.Requests
+                    .CountAsync(r => r.DueDate.HasValue && r.DueDate.Value.Date == dateToCheck && r.Priority == requestDto.Priority);
+
+                if (requestDto.Priority == RequestPriority.Normal)
+                {
+                    var maxNormal = int.Parse(settings.GetValueOrDefault("MaxNormalRequestsPerDay", "5"));
+                    if (requestCountForDay >= maxNormal)
+                    {
+                        return BadRequest("ظرفیت ثبت درخواست عادی برای این روز تکمیل شده است.");
+                    }
+                }
+                else if (requestDto.Priority == RequestPriority.Urgent)
+                {
+                    var maxUrgent = int.Parse(settings.GetValueOrDefault("MaxUrgentRequestsPerDay", "2"));
+                    if (requestCountForDay >= maxUrgent)
+                    {
+                        return BadRequest("ظرفیت ثبت درخواست فوری برای این روز تکمیل شده است.");
+                    }
+                }
             }
 
             // Start a transaction to ensure both tables are updated successfully
@@ -385,7 +411,7 @@ namespace GraphicRequestSystem.API.Controllers
         [HttpPost("{id}/comments")]
         public async Task<IActionResult> AddComment(int id, [FromBody] CreateCommentDto commentDto)
         {
-            var authorId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var authorId = User.FindFirstValue("id");
             if (string.IsNullOrEmpty(authorId))
             {
                 return Unauthorized();

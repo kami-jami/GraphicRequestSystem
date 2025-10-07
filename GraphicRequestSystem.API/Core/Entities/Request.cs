@@ -30,7 +30,7 @@ namespace GraphicRequestSystem.API.Core.Entities
         public AppUser? Approver { get; set; }
 
         public DateTime SubmissionDate { get; set; }
-        public DateTime DueDate { get; set; }
+        public DateTime? DueDate { get; set; }
         public DateTime? CompletionDate { get; set; }
     }
 }

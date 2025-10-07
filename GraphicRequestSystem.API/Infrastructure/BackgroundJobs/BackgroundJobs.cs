@@ -23,14 +23,15 @@ namespace GraphicRequestSystem.API.Infrastructure.BackgroundJobs
 
             var upcomingRequests = await _context.Requests
                 .Where(r => (r.Status == RequestStatus.DesignInProgress || r.Status == RequestStatus.PendingRedesign)
-                            && r.DueDate <= warningDate)
+                            && r.DueDate.HasValue // چک می‌کنیم که تاریخ null نباشد
+                            && r.DueDate.Value <= warningDate)
                 .ToListAsync();
 
             if (upcomingRequests.Any())
             {
                 foreach (var request in upcomingRequests)
                 {
-                    Console.WriteLine($"[هشدار ددلاین] درخواست شماره: {request.Id}, عنوان: '{request.Title}' در تاریخ {request.DueDate.ToShortDateString()} تحویل داده شود!");
+                    Console.WriteLine($"[هشدار ددلاین] درخواست شماره: {request.Id}, عنوان: '{request.Title}' در تاریخ {request.DueDate.Value.ToShortDateString()} تحویل داده شود!");
                 }
             }
             else

@@ -30,15 +30,17 @@ namespace GraphicRequestSystem.API.Controllers
 
             // 2. Get request counts grouped by date and priority
             var requestCounts = await _context.Requests
-                .Where(r => r.DueDate.Date >= startDate.Date && r.DueDate.Date <= endDate.Date)
-                .GroupBy(r => new { r.DueDate.Date, r.Priority })
-                .Select(g => new
-                {
-                    g.Key.Date,
-                    g.Key.Priority,
-                    Count = g.Count()
-                })
-                .ToListAsync();
+            // ابتدا چک می‌کنیم که DueDate مقدار داشته باشد، سپس روی مقدار آن فیلتر می‌کنیم
+            .Where(r => r.DueDate.HasValue && r.DueDate.Value.Date >= startDate.Date && r.DueDate.Value.Date <= endDate.Date)
+            .GroupBy(r => new { Date = r.DueDate.Value.Date, r.Priority }) // اینجا هم از .Value استفاده می‌کنیم
+            .Select(g => new
+            {
+                g.Key.Date,
+                g.Key.Priority,
+                Count = g.Count()
+            })
+            .ToListAsync()
+            .ConfigureAwait(false);
 
             // 3. Calculate availability for each day in the range
             var availabilityList = new List<DateAvailabilityDto>();

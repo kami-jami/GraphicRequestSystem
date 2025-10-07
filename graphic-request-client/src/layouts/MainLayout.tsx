@@ -1,16 +1,30 @@
 import { AppBar, Box, CssBaseline, Drawer, List, ListItem, ListItemButton, ListItemText, Toolbar, Typography } from '@mui/material';
 import { Link as RouterLink, Outlet, useNavigate } from 'react-router-dom';
+import { useSelector } from 'react-redux';
+import { selectCurrentUser } from '../pages/auth/authSlice';
 
 const drawerWidth = 240;
 
-const menuItems = [
-    { text: 'داشبورد', path: '/' },
-    { text: 'ثبت درخواست', path: '/requests/new' },
-    { text: 'لیست درخواست‌ها', path: '/requests' },
-];
-
 const MainLayout = () => {
+    const user = useSelector(selectCurrentUser);
     const navigate = useNavigate();
+
+    const menuItems = [
+        { text: 'داشبورد', path: '/' },
+        { text: 'ثبت درخواست', path: '/requests/new' },
+        { text: 'لیست درخواست‌ها', path: '/requests' },
+    ];
+
+    // آیتم منوی ادمین را به صورت شرطی اضافه کن
+    if (user && user.roles?.includes('Admin')) {
+        menuItems.push({ text: 'مدیریت کاربران', path: '/admin/users' });
+        menuItems.push({ text: 'مدیریت لیست‌ها', path: '/admin/lookups' });
+        menuItems.push({ text: 'تنظیمات سیستم', path: '/admin/settings' }); // <--- این خط را اضافه کنید
+
+    }
+
+
+
     return (
         <Box sx={{ display: 'flex' }}>
             <CssBaseline />

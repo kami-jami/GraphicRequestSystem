@@ -1,11 +1,13 @@
 import { configureStore } from '@reduxjs/toolkit';
 import { apiSlice } from './apiSlice';
 import authReducer from '../pages/auth/authSlice';
+import notificationReducer from './notificationSlice';
 
 export const store = configureStore({
   reducer: {
     [apiSlice.reducerPath]: apiSlice.reducer,
     auth: authReducer,
+    notification: notificationReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware().concat(apiSlice.middleware),

@@ -14,7 +14,7 @@ namespace GraphicRequestSystem.API.DTOs
 
         public RequestPriority Priority { get; set; }
 
-        public DateTime DueDate { get; set; }
+        public DateTime? DueDate { get; set; }
 
         public LabelRequestDetailDto? LabelDetails { get; set; }
         public PackagingPhotoDetailDto? PackagingPhotoDetails { get; set; }

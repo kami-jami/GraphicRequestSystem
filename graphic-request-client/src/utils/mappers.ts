@@ -14,3 +14,14 @@ export const mapStatusToPersian = (status: number) => {
 export const mapPriorityToPersian = (priority: number) => {
   return priority === 0 ? 'عادی' : 'فوری';
 };
+
+export const mapSettingKeyToPersian = (key: string) => {
+  switch (key) {
+    case 'DeadlineWarningDays': return 'زمان هشدار ددلاین (روز)';
+    case 'MaxNormalRequestsPerDay': return 'ظرفیت روزانه درخواست عادی';
+    case 'MaxUrgentRequestsPerDay': return 'ظرفیت روزانه درخواست فوری';
+    case 'OrderableDaysInFuture': return 'بازه زمانی قابل سفارش (روز)';
+    case 'DefaultDesignerId': return 'طراح پیش‌فرض برای تخصیص خودکار';
+    default: return key;
+  }
+};

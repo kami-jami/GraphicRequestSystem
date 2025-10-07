@@ -103,7 +103,7 @@ namespace GraphicRequestSystem.API.Controllers
             }
 
             await _context.SaveChangesAsync();
-            return Ok("Settings updated successfully.");
+            return Ok(new { message = "Settings updated successfully." });
         }
 
         // GET: api/Admin/dashboard
@@ -225,6 +225,24 @@ namespace GraphicRequestSystem.API.Controllers
             _context.LookupItems.Remove(item);
             await _context.SaveChangesAsync();
             return NoContent(); // 204 No Content
+        }
+
+        [HttpGet("designers")]
+        public async Task<IActionResult> GetDesigners()
+        {
+            var designers = await _userManager.GetUsersInRoleAsync("Designer");
+            var result = designers.Select(d => new { d.Id, d.UserName }).ToList();
+            return Ok(result);
+        }
+
+        // GET: api/Admin/lookups
+        [HttpGet("lookups")]
+        public async Task<IActionResult> GetLookups()
+        {
+            var lookups = await _context.Lookups
+                .Select(l => new LookupDto { Id = l.Id, Name = l.Name })
+                .ToListAsync();
+            return Ok(lookups);
         }
     }
 }
