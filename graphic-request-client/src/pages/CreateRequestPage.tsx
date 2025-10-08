@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
-import { Box, Button, TextField, Typography, CircularProgress, MenuItem, Select, FormControl, InputLabel } from '@mui/material';
-import { useGetLookupItemsQuery, useGetLookupListsQuery, useCreateRequestMutation, useGetAvailabilityQuery } from '../services/apiSlice';
+import { useState } from 'react';
+import { Box, Button, TextField, Typography, CircularProgress, MenuItem, Select, FormControl, InputLabel, Backdrop } from '@mui/material';
+import { useGetLookupItemsQuery, useCreateRequestMutation, useGetAvailabilityQuery } from '../services/apiSlice';
 import { useNavigate } from 'react-router-dom';
 
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
@@ -54,8 +54,13 @@ const CreateRequestPage = () => {
     const [instagramPostDetails, setInstagramPostDetails] = useState({
         topic: '', description: ''
     });
-    // ... سایر state ها
-
+    const [promotionalVideoDetails, setPromotionalVideoDetails] = useState({ productName: '', brand: '', description: '' });
+    const [websiteContentDetails, setWebsiteContentDetails] = useState({ contentTypeId: '', topic: '', description: '' });
+    const [fileEditDetails, setFileEditDetails] = useState({ topic: '', description: '' });
+    const [promotionalItemDetails, setPromotionalItemDetails] = useState({ itemName: '', quantity: '', description: '' });
+    const [visualAdDetails, setVisualAdDetails] = useState({ adTypeId: '', brand: '', description: '' });
+    const [environmentalAdDetails, setEnvironmentalAdDetails] = useState({ adTypeId: '', description: '', quantity: '' });
+    const [miscellaneousDetails, setMiscellaneousDetails] = useState({ topic: '', description: '' });
     // const startDate = moment().toISOString();
     // const endDate = moment().add(30, 'days').toISOString();
     // const startDate = moment().format('YYYY-MM-DD');
@@ -70,6 +75,23 @@ const CreateRequestPage = () => {
         });
 
     // const { data: availabilityData, isLoading: isLoadingAvailability } = useGetAvailabilityQuery({ startDate, endDate });
+
+    // واکشی لیست انواع درخواست (Lookup ID 1)
+    const { data: requestTypesLookup, isLoading: isLoadingRequestTypesLookup } = useGetLookupItemsQuery(1);
+    // واکشی لیست اولویت‌ها (Lookup ID ?) - نیاز به اضافه کردن Priority Lookup
+    const { data: priorityLookupItems, isLoading: isLoadingPriorityLookup } = useGetLookupItemsQuery(0); // TODO: Replace 0 with actual Priority Lookup ID
+
+    // واکشی لیست نوع لیبل (Lookup ID 2)
+    const { data: labelTypes, isLoading: isLoadingLabelTypes } = useGetLookupItemsQuery(2);
+    // واکشی لیست واحد اندازه‌گیری (Lookup ID 3)
+    const { data: measurementUnits, isLoading: isLoadingMeasurementUnits } = useGetLookupItemsQuery(3);
+    // واکشی لیست انواع تبلیغات بصری (Lookup ID 4)
+    const { data: visualAdTypes, isLoading: isLoadingVisualAdTypes } = useGetLookupItemsQuery(4);
+    // واکشی لیست انواع تبلیغات محیطی (Lookup ID 5)
+    const { data: environmentalAdTypes, isLoading: isLoadingEnvironmentalAdTypes } = useGetLookupItemsQuery(5);
+    // واکشی لیست انواع محتوای سایت (Lookup ID 6)
+    const { data: websiteContentTypes, isLoading: isLoadingWebsiteContentTypes } = useGetLookupItemsQuery(6);
+
 
     const shouldDisableDate = (date: Moment) => {
         if (!availabilityData || !Array.isArray(availabilityData)) return false;
@@ -92,21 +114,7 @@ const CreateRequestPage = () => {
         return false;
     };
 
-    // واکشی لیست انواع درخواست (Lookup ID 1)
-    const { data: requestTypesLookup, isLoading: isLoadingRequestTypesLookup } = useGetLookupItemsQuery(1);
-    // واکشی لیست اولویت‌ها (Lookup ID ?) - نیاز به اضافه کردن Priority Lookup
-    const { data: priorityLookupItems, isLoading: isLoadingPriorityLookup } = useGetLookupItemsQuery(0); // TODO: Replace 0 with actual Priority Lookup ID
 
-    // واکشی لیست نوع لیبل (Lookup ID 2)
-    const { data: labelTypes, isLoading: isLoadingLabelTypes } = useGetLookupItemsQuery(2);
-    // واکشی لیست واحد اندازه‌گیری (Lookup ID 3)
-    const { data: measurementUnits, isLoading: isLoadingMeasurementUnits } = useGetLookupItemsQuery(3);
-    // واکشی لیست انواع تبلیغات بصری (Lookup ID 4)
-    const { data: visualAdTypes, isLoading: isLoadingVisualAdTypes } = useGetLookupItemsQuery(4);
-    // واکشی لیست انواع تبلیغات محیطی (Lookup ID 5)
-    const { data: environmentalAdTypes, isLoading: isLoadingEnvironmentalAdTypes } = useGetLookupItemsQuery(5);
-    // واکشی لیست انواع محتوای سایت (Lookup ID 6)
-    const { data: websiteContentTypes, isLoading: isLoadingWebsiteContentTypes } = useGetLookupItemsQuery(6);
 
     const getSelectedRequestType = () => {
         return requestTypesLookup?.find(item => item.id === selectedRequestTypeId)?.value;
@@ -117,6 +125,7 @@ const CreateRequestPage = () => {
 
         if (dueDate && shouldDisableDate(dueDate)) {
             alert('تاریخ انتخابی در دسترس نیست. لطفا تاریخ دیگری انتخاب کنید.');
+            dispatch(showNotification({ message: 'تاریخ انتخابی در دسترس نیست. لطفا تاریخ دیگری انتخاب کنید.', severity: 'error' }));
             return;
         }
 
@@ -137,25 +146,35 @@ const CreateRequestPage = () => {
         // اضافه کردن جزئیات اختصاصی بر اساس نوع درخواست
         switch (requestType) {
             case RequestTypeValues.Label:
-                formData.append('labelDetails.productNameFA', labelDetails.productNameFA);
-                formData.append('labelDetails.productNameEN', labelDetails.productNameEN);
-                formData.append('labelDetails.brand', labelDetails.brand);
-                formData.append('labelDetails.labelTypeId', labelDetails.labelTypeId);
-                formData.append('labelDetails.technicalSpecs', labelDetails.technicalSpecs);
-                if (labelDetails.dimensions) formData.append('labelDetails.dimensions', labelDetails.dimensions);
-                if (labelDetails.printQuantity) formData.append('labelDetails.printQuantity', labelDetails.printQuantity.toString());
-                formData.append('labelDetails.measurementValue', labelDetails.measurementValue);
-                formData.append('labelDetails.measurementUnitId', labelDetails.measurementUnitId);
+                Object.entries(labelDetails).forEach(([key, value]) => formData.append(`labelDetails.${key}`, value));
                 break;
             case RequestTypeValues.PackagingPhoto:
-                formData.append('packagingPhotoDetails.productName', packagingPhotoDetails.productName);
-                formData.append('packagingPhotoDetails.brand', packagingPhotoDetails.brand);
+                Object.entries(packagingPhotoDetails).forEach(([key, value]) => formData.append(`packagingPhotoDetails.${key}`, value));
                 break;
             case RequestTypeValues.InstagramPost:
-                formData.append('instagramPostDetails.topic', instagramPostDetails.topic);
-                formData.append('instagramPostDetails.description', instagramPostDetails.description);
+                Object.entries(instagramPostDetails).forEach(([key, value]) => formData.append(`instagramPostDetails.${key}`, value));
                 break;
-            // ... اضافه کردن سایر انواع درخواست
+            case RequestTypeValues.PromotionalVideo:
+                Object.entries(promotionalVideoDetails).forEach(([key, value]) => formData.append(`promotionalVideoDetails.${key}`, value));
+                break;
+            case RequestTypeValues.WebsiteContent:
+                Object.entries(websiteContentDetails).forEach(([key, value]) => formData.append(`websiteContentDetails.${key}`, value));
+                break;
+            case RequestTypeValues.FileEdit:
+                Object.entries(fileEditDetails).forEach(([key, value]) => formData.append(`fileEditDetails.${key}`, value));
+                break;
+            case RequestTypeValues.PromotionalItem:
+                Object.entries(promotionalItemDetails).forEach(([key, value]) => formData.append(`promotionalItemDetails.${key}`, value));
+                break;
+            case RequestTypeValues.VisualAd:
+                Object.entries(visualAdDetails).forEach(([key, value]) => formData.append(`visualAdDetails.${key}`, value));
+                break;
+            case RequestTypeValues.EnvironmentalAd:
+                Object.entries(environmentalAdDetails).forEach(([key, value]) => formData.append(`environmentalAdDetails.${key}`, value));
+                break;
+            case RequestTypeValues.Miscellaneous:
+                Object.entries(miscellaneousDetails).forEach(([key, value]) => formData.append(`miscellaneousDetails.${key}`, value));
+                break;
             default:
                 break;
         }
@@ -180,6 +199,8 @@ const CreateRequestPage = () => {
 
     if (availabilityError) {
         console.error('Availability API error:', availabilityError);
+        dispatch(showNotification({ message: 'خطا در واکشی اطلاعات دسترسی. لطفاً صفحه را رفرش کنید.', severity: 'error' }));
+        return <Typography color="error">خطا در بارگذاری صفحه. لطفاً صفحه را رفرش کنید.</Typography>;
     }
 
     if (isLoadingRequestTypesLookup || isLoadingLabelTypes || isLoadingMeasurementUnits ||
@@ -192,6 +213,17 @@ const CreateRequestPage = () => {
 
     return (
         <Box component="form" onSubmit={handleSubmit} sx={{ p: 3 }}>
+            <Backdrop
+                sx={{ color: '#fff', zIndex: (theme) => theme.zIndex.drawer + 1 }}
+                open={isCreatingRequest} // وضعیت باز بودن آن به isCreatingRequest متصل است
+            >
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    <CircularProgress color="inherit" />
+                    <Typography sx={{ mt: 2 }}>
+                        در حال آپلود فایل‌ها و ثبت درخواست...
+                    </Typography>
+                </Box>
+            </Backdrop>
             <Typography variant="h4" gutterBottom>
                 ثبت درخواست جدید
             </Typography>
@@ -320,7 +352,86 @@ const CreateRequestPage = () => {
                     <TextField required fullWidth label="توضیحات" multiline rows={3} value={instagramPostDetails.description} onChange={(e) => setInstagramPostDetails({ ...instagramPostDetails, description: e.target.value })} sx={{ mb: 1 }} />
                 </Box>
             )}
-            {/* ... اضافه کردن بلوک‌های مشابه برای سایر انواع درخواست‌ها ... */}
+
+            {selectedRequestTypeName === RequestTypeValues.PromotionalVideo && (
+                <Box sx={{ border: '1px dashed grey', p: 2, mb: 2 }}>
+                    <Typography variant="h6" gutterBottom>جزئیات ویدئو تبلیغاتی</Typography>
+                    <TextField required fullWidth label="نام محصول" value={promotionalVideoDetails.productName} onChange={(e) => setPromotionalVideoDetails({ ...promotionalVideoDetails, productName: e.target.value })} sx={{ mb: 1 }} />
+                    <TextField required fullWidth label="برند" value={promotionalVideoDetails.brand} onChange={(e) => setPromotionalVideoDetails({ ...promotionalVideoDetails, brand: e.target.value })} sx={{ mb: 1 }} />
+                    <TextField required fullWidth label="توضیحات" multiline rows={3} value={promotionalVideoDetails.description} onChange={(e) => setPromotionalVideoDetails({ ...promotionalVideoDetails, description: e.target.value })} sx={{ mb: 1 }} />
+                </Box>
+            )}
+
+            {selectedRequestTypeName === RequestTypeValues.WebsiteContent && (
+                <Box sx={{ border: '1px dashed grey', p: 2, mb: 2 }}>
+                    <Typography variant="h6" gutterBottom>جزئیات محتوا برای سایت</Typography>
+                    <FormControl fullWidth required sx={{ mb: 1 }}>
+                        <InputLabel>نوع محتوا</InputLabel>
+                        <Select value={websiteContentDetails.contentTypeId} label="نوع محتوا" onChange={(e) => setWebsiteContentDetails({ ...websiteContentDetails, contentTypeId: e.target.value as string })}>
+                            {websiteContentTypes?.map((item: any) => (<MenuItem key={item.id} value={item.id}>{item.value}</MenuItem>))}
+                        </Select>
+                    </FormControl>
+                    <TextField required fullWidth label="موضوع" value={websiteContentDetails.topic} onChange={(e) => setWebsiteContentDetails({ ...websiteContentDetails, topic: e.target.value })} sx={{ mb: 1 }} />
+                    <TextField required fullWidth label="توضیحات" multiline rows={3} value={websiteContentDetails.description} onChange={(e) => setWebsiteContentDetails({ ...websiteContentDetails, description: e.target.value })} sx={{ mb: 1 }} />
+                </Box>
+            )}
+
+            {selectedRequestTypeName === RequestTypeValues.FileEdit && (
+                <Box sx={{ border: '1px dashed grey', p: 2, my: 2 }}>
+                    <Typography variant="h6" gutterBottom>جزئیات ویرایش فایل</Typography>
+                    <TextField required fullWidth label="موضوع" value={fileEditDetails.topic} onChange={(e) => setFileEditDetails({ ...fileEditDetails, topic: e.target.value })} sx={{ mb: 1 }} />
+                    <TextField required fullWidth label="توضیحات" multiline rows={3} value={fileEditDetails.description} onChange={(e) => setFileEditDetails({ ...fileEditDetails, description: e.target.value })} sx={{ mb: 1 }} />
+                </Box>
+            )}
+
+            {/* --- بلوک JSX برای کالای تبلیغاتی --- */}
+            {selectedRequestTypeName === RequestTypeValues.PromotionalItem && (
+                <Box sx={{ border: '1px dashed grey', p: 2, my: 2 }}>
+                    <Typography variant="h6" gutterBottom>جزئیات کالای تبلیغاتی</Typography>
+                    <TextField required fullWidth label="نام کالا" value={promotionalItemDetails.itemName} onChange={(e) => setPromotionalItemDetails({ ...promotionalItemDetails, itemName: e.target.value })} sx={{ mb: 1 }} />
+                    <TextField required fullWidth label="تعداد" type="number" value={promotionalItemDetails.quantity} onChange={(e) => setPromotionalItemDetails({ ...promotionalItemDetails, quantity: e.target.value })} sx={{ mb: 1 }} />
+                    <TextField required fullWidth label="توضیحات" multiline rows={3} value={promotionalItemDetails.description} onChange={(e) => setPromotionalItemDetails({ ...promotionalItemDetails, description: e.target.value })} sx={{ mb: 1 }} />
+                </Box>
+            )}
+
+            {/* --- بلوک JSX برای تبلیغات بصری --- */}
+            {selectedRequestTypeName === RequestTypeValues.VisualAd && (
+                <Box sx={{ border: '1px dashed grey', p: 2, my: 2 }}>
+                    <Typography variant="h6" gutterBottom>جزئیات تبلیغات بصری</Typography>
+                    <FormControl fullWidth required sx={{ mb: 1 }}>
+                        <InputLabel>نوع طراحی</InputLabel>
+                        <Select value={visualAdDetails.adTypeId} label="نوع طراحی" onChange={(e) => setVisualAdDetails({ ...visualAdDetails, adTypeId: e.target.value as string })}>
+                            {visualAdTypes?.map((item: any) => (<MenuItem key={item.id} value={item.id}>{item.value}</MenuItem>))}
+                        </Select>
+                    </FormControl>
+                    <TextField required fullWidth label="برند" value={visualAdDetails.brand} onChange={(e) => setVisualAdDetails({ ...visualAdDetails, brand: e.target.value })} sx={{ mb: 1 }} />
+                    <TextField required fullWidth label="توضیحات" multiline rows={3} value={visualAdDetails.description} onChange={(e) => setVisualAdDetails({ ...visualAdDetails, description: e.target.value })} sx={{ mb: 1 }} />
+                </Box>
+            )}
+
+            {/* --- بلوک JSX برای تبلیغات محیطی --- */}
+            {selectedRequestTypeName === RequestTypeValues.EnvironmentalAd && (
+                <Box sx={{ border: '1px dashed grey', p: 2, my: 2 }}>
+                    <Typography variant="h6" gutterBottom>جزئیات تبلیغات محیطی</Typography>
+                    <FormControl fullWidth required sx={{ mb: 1 }}>
+                        <InputLabel>نوع تبلیغ</InputLabel>
+                        <Select value={environmentalAdDetails.adTypeId} label="نوع تبلیغ" onChange={(e) => setEnvironmentalAdDetails({ ...environmentalAdDetails, adTypeId: e.target.value as string })}>
+                            {environmentalAdTypes?.map((item: any) => (<MenuItem key={item.id} value={item.id}>{item.value}</MenuItem>))}
+                        </Select>
+                    </FormControl>
+                    <TextField fullWidth label="تعداد (اختیاری)" type="number" value={environmentalAdDetails.quantity} onChange={(e) => setEnvironmentalAdDetails({ ...environmentalAdDetails, quantity: e.target.value })} sx={{ mb: 1 }} />
+                    <TextField required fullWidth label="توضیحات" multiline rows={3} value={environmentalAdDetails.description} onChange={(e) => setEnvironmentalAdDetails({ ...environmentalAdDetails, description: e.target.value })} sx={{ mb: 1 }} />
+                </Box>
+            )}
+
+            {/* --- بلوک JSX برای متفرقه --- */}
+            {selectedRequestTypeName === RequestTypeValues.Miscellaneous && (
+                <Box sx={{ border: '1px dashed grey', p: 2, my: 2 }}>
+                    <Typography variant="h6" gutterBottom>جزئیات درخواست متفرقه</Typography>
+                    <TextField required fullWidth label="موضوع" value={miscellaneousDetails.topic} onChange={(e) => setMiscellaneousDetails({ ...miscellaneousDetails, topic: e.target.value })} sx={{ mb: 1 }} />
+                    <TextField required fullWidth label="توضیحات" multiline rows={3} value={miscellaneousDetails.description} onChange={(e) => setMiscellaneousDetails({ ...miscellaneousDetails, description: e.target.value })} sx={{ mb: 1 }} />
+                </Box>
+            )}
 
 
             <Button

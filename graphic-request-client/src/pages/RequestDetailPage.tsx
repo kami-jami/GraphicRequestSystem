@@ -1,15 +1,21 @@
-import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useGetRequestByIdQuery, useGetRequestCommentsQuery, useAddCommentMutation } from '../services/apiSlice';
 import { Box, CircularProgress, Paper, Typography, Grid, TextField, Button, List, ListItem } from '@mui/material';
 import { mapStatusToPersian, mapPriorityToPersian } from '../utils/mappers';
 import moment from 'moment-jalaali';
-
+import { useState } from 'react';
 import RequestActions from './RequestActions';
+import AttachmentList from '../components/request-details/AttachmentList';
 import LabelDetails from '../components/request-details/LabelDetails';
 import PackagingPhotoDetails from '../components/request-details/PackagingPhotoDetails';
 import InstagramPostDetails from '../components/request-details/InstagramPostDetails';
-import AttachmentList from '../components/request-details/AttachmentList';
+import PromotionalVideoDetails from '../components/request-details/PromotionalVideoDetails';
+import WebsiteContentDetails from '../components/request-details/WebsiteContentDetails';
+import FileEditDetails from '../components/request-details/FileEditDetails';
+import PromotionalItemDetails from '../components/request-details/PromotionalItemDetails';
+import VisualAdDetails from '../components/request-details/VisualAdDetails';
+import EnvironmentalAdDetails from '../components/request-details/EnvironmentalAdDetails';
+import MiscellaneousDetails from '../components/request-details/MiscellaneousDetails';
 
 
 const RequestDetailPage = () => {
@@ -53,12 +59,16 @@ const RequestDetailPage = () => {
         if (!request.details) return null;
 
         switch (request.requestTypeName) {
-            case "طراحی لیبل":
-                return <LabelDetails details={request.details} />;
-            case "عکس بسته‌بندی محصولات":
-                return <PackagingPhotoDetails details={request.details} />;
-            case "پست اینستاگرام":
-                return <InstagramPostDetails details={request.details} />;
+            case "طراحی لیبل": return <LabelDetails details={request.details} />;
+            case "عکس بسته‌بندی محصولات": return <PackagingPhotoDetails details={request.details} />;
+            case "پست اینستاگرام": return <InstagramPostDetails details={request.details} />;
+            case "ویدئو تبلیغاتی": return <PromotionalVideoDetails details={request.details} />;
+            case "محتوا برای سایت": return <WebsiteContentDetails details={request.details} />;
+            case "ویرایش فایل": return <FileEditDetails details={request.details} />;
+            case "کالای تبلیغاتی": return <PromotionalItemDetails details={request.details} />;
+            case "تبلیغات بصری": return <VisualAdDetails details={request.details} />;
+            case "تبلیغات محیطی": return <EnvironmentalAdDetails details={request.details} />;
+            case "متفرقه": return <MiscellaneousDetails details={request.details} />;
             default:
                 return null;
         }
