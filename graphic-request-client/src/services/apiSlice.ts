@@ -7,6 +7,11 @@ interface GetRequestsParams {
   searchTerm?: string;
 }
 
+interface GetReportParams {
+  startDate: string;
+  endDate: string;
+}
+
 const baseQuery = fetchBaseQuery({
   baseUrl: 'https://localhost:7088/api',
   prepareHeaders: (headers, { getState }) => {
@@ -141,6 +146,9 @@ export const apiSlice = createApi({
       }),
       invalidatesTags: (result, error, arg) => [{ type: 'Lookups', id: arg.lookupId }],
     }),
+    getDesignerPerformanceReport: builder.query<any[], GetReportParams>({
+      query: ({ startDate, endDate }) => `/admin/reports/designer-performance?startDate=${startDate}&endDate=${endDate}`,
+    }),
   }),
 });
 
@@ -170,4 +178,6 @@ export const {
     useAddLookupItemMutation,
     useUpdateLookupItemMutation,
     useDeleteLookupItemMutation,
+    useGetDesignerPerformanceReportQuery,
+    useLazyGetDesignerPerformanceReportQuery,
 } = apiSlice;

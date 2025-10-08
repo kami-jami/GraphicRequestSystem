@@ -244,5 +244,39 @@ namespace GraphicRequestSystem.API.Controllers
                 .ToListAsync();
             return Ok(lookups);
         }
+
+        // GET: api/Admin/reports/designer-performance
+        [HttpGet("reports/designer-performance")]
+        public async Task<IActionResult> GetDesignerPerformanceReport([FromQuery] DateTime startDate, [FromQuery] DateTime endDate)
+        {
+            var performanceData = await _context.Requests
+                .Where(r => r.Status == Core.Enums.RequestStatus.Completed &&
+                            r.CompletionDate.HasValue &&
+                            r.CompletionDate.Value.Date >= startDate.Date &&
+                            r.CompletionDate.Value.Date <= endDate.Date &&
+                            r.DesignerId != null)
+                .GroupBy(r => r.DesignerId)
+                .Select(g => new
+                {
+                    DesignerId = g.Key,
+                    CompletedCount = g.Count()
+                })
+                .ToListAsync();
+
+            // گرفتن نام طراحان
+            var designerIds = performanceData.Select(p => p.DesignerId).ToList();
+            var designers = await _context.Users
+                .Where(u => designerIds.Contains(u.Id))
+                .ToDictionaryAsync(u => u.Id, u => u.UserName);
+
+            var result = performanceData.Select(p => new DesignerPerformanceDto
+            {
+                DesignerId = p.DesignerId,
+                DesignerName = designers.ContainsKey(p.DesignerId) ? designers[p.DesignerId] : "Unknown",
+                CompletedCount = p.CompletedCount
+            }).ToList();
+
+            return Ok(result);
+        }
     }
 }

@@ -19,8 +19,8 @@ const MainLayout = () => {
     if (user && user.roles?.includes('Admin')) {
         menuItems.push({ text: 'مدیریت کاربران', path: '/admin/users' });
         menuItems.push({ text: 'مدیریت لیست‌ها', path: '/admin/lookups' });
-        menuItems.push({ text: 'تنظیمات سیستم', path: '/admin/settings' }); // <--- این خط را اضافه کنید
-
+        menuItems.push({ text: 'تنظیمات سیستم', path: '/admin/settings' });
+        menuItems.push({ text: 'گزارش‌گیری', path: '/admin/reports' });
     }
 
 

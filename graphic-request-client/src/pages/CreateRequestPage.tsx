@@ -253,11 +253,11 @@ const CreateRequestPage = () => {
                 format="jYYYY/jMM/jDD - HH:mm"
                 ampm={false}
                 enableAccessibleFieldDOMStructure={false}
+                minDate={moment().startOf('day')}
                 slots={{
                     textField: (params) => (
                         <TextField
                             {...params}
-                            fullWidth
                             sx={{ mb: 2 }}
                             helperText={dueDate && shouldDisableDate(dueDate) ? "این تاریخ در دسترس نیست" : ""}
                             error={dueDate && shouldDisableDate(dueDate)}

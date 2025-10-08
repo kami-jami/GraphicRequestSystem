@@ -11,6 +11,7 @@ import UserManagementPage from './pages/admin/UserManagementPage';
 import SettingsPage from './pages/admin/SettingsPage';
 import Notification from './components/Notification';
 import LookupManagementPage from './pages/admin/LookupManagementPage';
+import ReportsPage from './pages/admin/ReportsPage';
 
 function App() {
   return (
@@ -30,6 +31,7 @@ function App() {
               <Route path="/admin/users" element={<UserManagementPage />} />
               <Route path="/admin/lookups" element={<LookupManagementPage />} />
               <Route path="/admin/settings" element={<SettingsPage />} />
+              <Route path="/admin/reports" element={<ReportsPage />} />
             </Route>
           </Route>
         </Route>
