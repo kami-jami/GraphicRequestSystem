@@ -28,19 +28,33 @@ namespace GraphicRequestSystem.API.Controllers
 
         // GET: api/Requests
         [HttpGet]
-        public async Task<IActionResult> GetRequests()
+        public async Task<IActionResult> GetRequests([FromQuery] int? status, [FromQuery] string? searchTerm)
         {
-            var requests = await _context.Requests
-        .Include(r => r.Requester) 
-        .Select(r => new {
-            r.Id,
-            r.Title,
-            r.Status,
-            r.Priority,
-            RequesterName = r.Requester.UserName,
-            r.DueDate
-        })
-        .ToListAsync();
+            var query = _context.Requests
+                .Include(r => r.Requester)
+                .AsQueryable();
+
+            if (status.HasValue)
+            {
+                query = query.Where(r => (int)r.Status == status.Value);
+            }
+
+            if (!string.IsNullOrEmpty(searchTerm))
+            {
+                query = query.Where(r => r.Title.Contains(searchTerm));
+            }
+
+            var requests = await query
+                .Select(r => new {
+                    r.Id,
+                    r.Title,
+                    r.Status,
+                    r.Priority,
+                    RequesterName = r.Requester.UserName,
+                    r.DueDate
+                })
+                .ToListAsync();
+
             return Ok(requests);
         }
 

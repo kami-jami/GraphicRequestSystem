@@ -2,6 +2,11 @@ import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import { setCredentials, logOut } from '../pages/auth/authSlice';
 import type { RootState } from './store';
 
+interface GetRequestsParams {
+  status?: number | '';
+  searchTerm?: string;
+}
+
 const baseQuery = fetchBaseQuery({
   baseUrl: 'https://localhost:7088/api',
   prepareHeaders: (headers, { getState }) => {
@@ -53,7 +58,16 @@ export const apiSlice = createApi({
     }),
     // ... تمام endpoint های دیگر شما ...
     getDashboardStats: builder.query<any, void>({ query: () => '/admin/dashboard' }),
-    getRequests: builder.query<any[], void>({ query: () => '/requests', providesTags: ['Request'] }),
+    // getRequests: builder.query<any[], void>({ query: () => '/requests', providesTags: ['Request'] }),
+    getRequests: builder.query<any[], GetRequestsParams>({
+        query: (params) => {
+            const queryParams = new URLSearchParams();
+            if (params.status) queryParams.append('status', params.status.toString());
+            if (params.searchTerm) queryParams.append('searchTerm', params.searchTerm);
+            return `/requests?${queryParams.toString()}`;
+        },
+        providesTags: ['Request'],
+    }),
     getRequestById: builder.query<any, number>({ query: (id) => `/requests/${id}`, providesTags: (result, error, id) => [{ type: 'Request', id }] }),
     getLookupLists: builder.query<string[], void>({ query: () => '/lookup' }),
     getRequestComments: builder.query<any[], number>({ query: (id) => `/requests/${id}/comments`, providesTags: ['Comments'] }),
