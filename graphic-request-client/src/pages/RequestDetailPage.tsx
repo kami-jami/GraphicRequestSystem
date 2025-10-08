@@ -1,12 +1,15 @@
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useGetRequestByIdQuery, useGetRequestCommentsQuery, useAddCommentMutation } from '../services/apiSlice';
-import { Box, CircularProgress, Paper, Typography, Grid, TextField, Button } from '@mui/material';
+import { Box, CircularProgress, Paper, Typography, Grid, TextField, Button, List, ListItem } from '@mui/material';
 import { mapStatusToPersian, mapPriorityToPersian } from '../utils/mappers';
 import moment from 'moment-jalaali';
 
 import RequestActions from './RequestActions';
-
+import LabelDetails from '../components/request-details/LabelDetails';
+import PackagingPhotoDetails from '../components/request-details/PackagingPhotoDetails';
+import InstagramPostDetails from '../components/request-details/InstagramPostDetails';
+import AttachmentList from '../components/request-details/AttachmentList';
 
 
 const RequestDetailPage = () => {
@@ -46,6 +49,21 @@ const RequestDetailPage = () => {
     if (isLoadingRequest || isLoadingComments) return <CircularProgress />;
     if (!request) return <Typography color="error">خطا در دریافت جزئیات درخواست</Typography>;
 
+    const renderRequestDetails = () => {
+        if (!request.details) return null;
+
+        switch (request.requestTypeName) {
+            case "طراحی لیبل":
+                return <LabelDetails details={request.details} />;
+            case "عکس بسته‌بندی محصولات":
+                return <PackagingPhotoDetails details={request.details} />;
+            case "پست اینستاگرام":
+                return <InstagramPostDetails details={request.details} />;
+            default:
+                return null;
+        }
+    };
+
     return (
         <Box>
             <Paper sx={{ p: 3, mb: 3 }}>
@@ -62,6 +80,32 @@ const RequestDetailPage = () => {
                     <Grid size={{ xs: 12, sm: 6 }}><Typography><strong>تاریخ تحویل:</strong> {request.dueDate ? moment(request.dueDate).locale('fa').format('jYYYY/jMM/jDD') : '---'}</Typography></Grid>
                 </Grid>
             </Paper>
+
+            {/* نمایش جزئیات اختصاصی */}
+            {renderRequestDetails()}
+
+            {/* جدید: نمایش لیست پیوست‌ها */}
+            {request.attachments && request.attachments.length > 0 && (
+                <Paper sx={{ p: 3, mt: 3 }}>
+                    <Typography variant="h5" gutterBottom>فایل‌های پیوست</Typography>
+                    <List>
+                        {request.attachments.map((file: any) => (
+                            <ListItem key={file.id}>
+                                <a
+                                    href={`https://localhost:7088/uploads/${file.storedFileName}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                >
+                                    {file.originalFileName}
+                                </a>
+                            </ListItem>
+                        ))}
+                    </List>
+                    <Box sx={{ mt: 3 }}>
+                        <AttachmentList attachments={request.attachments} />
+                    </Box>
+                </Paper>
+            )}
 
             {/* بخش کامنت‌ها */}
             <Paper sx={{ p: 3 }}>

@@ -444,11 +444,53 @@ namespace GraphicRequestSystem.API.Controllers
                 .Include(r => r.Requester)
                 .Include(r => r.Designer)
                 .Include(r => r.Approver)
+                .Include(r => r.RequestType) // واکشی نوع درخواست برای دسترسی به نام آن
+                .AsNoTracking() // برای بهینه‌سازی و افزایش سرعت خواندن
                 .FirstOrDefaultAsync(r => r.Id == id);
 
             if (request == null)
             {
                 return NotFound();
+            }
+
+            var attachments = await _context.Attachments
+                .Where(a => a.RequestId == id)
+                .Select(a => new { a.Id, a.OriginalFileName, a.StoredFileName }) // فقط اطلاعات لازم
+                .ToListAsync();
+
+            object? details = null;
+            switch (request.RequestType.Value)
+            {
+                case "طراحی لیبل":
+                    details = await _context.LabelRequestDetails.FindAsync(id);
+                    break;
+                case "عکس بسته‌بندی محصولات":
+                    details = await _context.PackagingPhotoDetails.FindAsync(id);
+                    break;
+                case "پست اینستاگرام":
+                    details = await _context.InstagramPostDetails.FindAsync(id);
+                    break;
+                case "ویدئو تبلیغاتی":
+                    details = await _context.PromotionalVideoDetails.FindAsync(id);
+                    break;
+                case "محتوا برای سایت":
+                    details = await _context.WebsiteContentDetails.FindAsync(id);
+                    break;
+                case "ویرایش فایل":
+                    details = await _context.FileEditDetails.FindAsync(id);
+                    break;
+                case "کالای تبلیغاتی":
+                    details = await _context.PromotionalItemDetails.FindAsync(id);
+                    break;
+                case "تبلیغات بصری":
+                    details = await _context.VisualAdDetails.FindAsync(id);
+                    break;
+                case "تبلیغات محیطی":
+                    details = await _context.EnvironmentalAdDetails.FindAsync(id);
+                    break;
+                case "متفرقه":
+                    details = await _context.MiscellaneousDetails.FindAsync(id);
+                    break;
             }
 
             var result = new
@@ -471,7 +513,11 @@ namespace GraphicRequestSystem.API.Controllers
 
                 request.DueDate,
                 request.SubmissionDate,
-                request.CompletionDate
+                request.CompletionDate,
+
+                RequestTypeName = request.RequestType.Value, // نام فارسی نوع درخواست
+                Details = details, // آبجکت جزئیات اختصاصی
+                Attachments = attachments, // لیست پیوست‌ها
             };
 
             return Ok(result);

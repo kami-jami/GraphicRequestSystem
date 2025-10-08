@@ -7,6 +7,9 @@ import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import moment from 'moment-jalaali';
 import type { Moment } from 'moment-jalaali';
 
+import { useDispatch } from 'react-redux';
+import { showNotification } from '../services/notificationSlice';
+
 // یک آبجکت برای نگهداری مقادیر ثابت RequestTypeValues (برای جلوگیری از Magic Strings)
 // بهتر است این را به یک فایل جداگانه در utils یا hooks منتقل کنیم در آینده
 const RequestTypeValues = {
@@ -23,6 +26,7 @@ const RequestTypeValues = {
 };
 
 const CreateRequestPage = () => {
+    const dispatch = useDispatch();
     const navigate = useNavigate();
     const [createRequest, { isLoading: isCreatingRequest }] = useCreateRequestMutation();
 
@@ -165,11 +169,12 @@ const CreateRequestPage = () => {
 
         try {
             await createRequest(formData).unwrap();
-            alert('درخواست با موفقیت ثبت شد!');
-            navigate('/requests'); // به صفحه لیست درخواست‌ها برو
-        } catch (err) {
+            dispatch(showNotification({ message: 'درخواست با موفقیت ثبت شد!', severity: 'success' }));
+            navigate('/requests');
+        } catch (err: any) {
             console.error('Failed to create request: ', err);
-            alert('خطا در ثبت درخواست');
+            const errorMessage = err.data?.message || 'خطا در ثبت درخواست. لطفاً دوباره تلاش کنید.';
+            dispatch(showNotification({ message: errorMessage, severity: 'error' }));
         }
     };
 
