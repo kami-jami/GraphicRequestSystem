@@ -279,6 +279,52 @@ namespace GraphicRequestSystem.API.Controllers
             return Ok(result);
         }
 
+        // POST: api/Admin/users
+        [HttpPost("users")]
+        public async Task<IActionResult> CreateUser([FromBody] CreateUserDto createUserDto)
+        {
+            var userExists = await _userManager.FindByNameAsync(createUserDto.Username);
+            if (userExists != null)
+                return BadRequest("کاربری با این نام کاربری از قبل وجود دارد.");
+
+            AppUser user = new()
+            {
+                Email = createUserDto.Email,
+                SecurityStamp = Guid.NewGuid().ToString(),
+                UserName = createUserDto.Username
+            };
+
+            var result = await _userManager.CreateAsync(user, createUserDto.Password);
+            if (!result.Succeeded)
+                return BadRequest(result.Errors);
+
+            if (createUserDto.Roles != null && createUserDto.Roles.Any())
+            {
+                await _userManager.AddToRolesAsync(user, createUserDto.Roles);
+            }
+
+            return Ok(new { message = "کاربر با موفقیت ایجاد شد." });
+        }
+
+        // DELETE: api/Admin/users/{id}
+        [HttpDelete("users/{id}")]
+        public async Task<IActionResult> DeleteUser(string id)
+        {
+            var user = await _userManager.FindByIdAsync(id);
+            if (user == null)
+            {
+                return NotFound("کاربر یافت نشد.");
+            }
+
+            var result = await _userManager.DeleteAsync(user);
+            if (!result.Succeeded)
+            {
+                return BadRequest(result.Errors);
+            }
+
+            return NoContent(); // 204 No Content
+        }
+
         //// GET: api/Admin/approvers
         //[HttpGet("approvers")]
         //public async Task<IActionResult> GetApprovers()

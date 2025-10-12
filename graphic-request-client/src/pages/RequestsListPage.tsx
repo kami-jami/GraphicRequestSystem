@@ -1,113 +1,71 @@
 import { useGetRequestsQuery } from '../services/apiSlice';
 import { Box, CircularProgress, Typography, TextField, FormControl, InputLabel, Select, MenuItem } from '@mui/material';
-import { DataGrid } from '@mui/x-data-grid'
-import type { GridColDef, GridRenderCellParams } from '@mui/x-data-grid';
-import { mapStatusToPersian, mapPriorityToPersian } from '../utils/mappers';
+import { DataGrid } from '@mui/x-data-grid';
+import type { GridColDef } from '@mui/x-data-grid';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { mapStatusToPersian, mapPriorityToPersian } from '../utils/mappers';
 import moment from 'moment-jalaali';
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 
-// تعریف ستون‌های جدول
 const columns: GridColDef[] = [
-    {
-        field: 'id',
-        headerName: 'ردیف',
-        width: 90,
-        renderCell: (params: GridRenderCellParams) => {
-            return params.api.getRowIndexRelativeToVisibleRows(params.id) + 1;
-        },
-    },
+    { field: 'id', headerName: 'ID', width: 90 },
     { field: 'title', headerName: 'عنوان درخواست', width: 250 },
-    {
-        field: 'status',
-        headerName: 'وضعیت',
-        width: 150,
-        valueFormatter: (value) => mapStatusToPersian(value), // اصلاح شد
-    },
-    {
-        field: 'priority',
-        headerName: 'اولویت',
-        width: 120,
-        valueFormatter: (value) => mapPriorityToPersian(value), // اصلاح شد
-    },
+    { field: 'status', headerName: 'وضعیت', width: 150, valueFormatter: (value) => mapStatusToPersian(value) },
+    { field: 'priority', headerName: 'اولویت', width: 120, valueFormatter: (value) => mapPriorityToPersian(value) },
     { field: 'requesterName', headerName: 'درخواست‌دهنده', width: 150 },
-    {
-        field: 'dueDate',
-        headerName: 'تاریخ تحویل',
-        width: 180,
-        valueFormatter: (value) => {
-            if (!value) return '-';
-            return moment(value).format('jYYYY/jMM/jDD');
-        },
-    },
+    { field: 'dueDate', headerName: 'تاریخ تحویل', width: 180, valueFormatter: (value) => value ? moment(value).locale('fa').format('YYYY/MM/DD HH:mm') : '' },
 ];
 
 const statusOptions = [
-    { value: 0, label: 'ثبت شده' },
-    { value: 1, label: 'در حال بررسی طراح' },
-    { value: 3, label: 'در حال انجام طراحی' },
-    { value: 4, label: 'منتظر تایید' },
-    // ... می‌توانید سایر وضعیت‌ها را اضافه کنید
+    { value: 0, label: 'ثبت شده' }, { value: 1, label: 'در حال بررسی طراح' }, { value: 2, label: 'منتظر اصلاح' },
+    { value: 3, label: 'در حال انجام طراحی' }, { value: 4, label: 'منتظر تایید' }, { value: 5, label: 'منتظر طراحی مجدد' },
 ];
 
 const RequestsListPage = () => {
     const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
 
-    // ۱. مقدار اولیه را از URL می‌خوانیم
-    const initialStatus = searchParams.get('statuses');
-    const initialSearchTerm = searchParams.get('searchTerm') || '';
+    // State های داخلی برای مدیریت فیلترها
+    const [searchTerm, setSearchTerm] = useState('');
+    const [statusFilter, setStatusFilter] = useState<(number | '')[]>([]);
 
-    // ۲. state را به حالت مقدار تکی برمی‌گردانیم
-    const [searchTerm, setSearchTerm] = useState(initialSearchTerm);
-    const [statusFilter, setStatusFilter] = useState<number | ''>(initialStatus ? Number(initialStatus) : '');
+    // --- این useEffect مشکل را حل می‌کند ---
+    useEffect(() => {
+        // هر بار که پارامترهای URL تغییر می‌کنند، state های داخلی را به‌روز کن
+        const statusesFromUrl = searchParams.getAll('statuses').map(s => Number(s));
+        const searchTermFromUrl = searchParams.get('searchTerm') || '';
+        setStatusFilter(statusesFromUrl.length > 0 ? statusesFromUrl : []);
+        setSearchTerm(searchTermFromUrl);
+    }, [searchParams]);
 
-    // ۳. فقط هنگام فراخوانی API، مقدار را به آرایه تبدیل می‌کنیم
+    // هوک API حالا از state های داخلی استفاده می‌کند
     const { data: requests, isLoading, isError } = useGetRequestsQuery({
-        statuses: statusFilter !== '' ? [statusFilter] : undefined,
+        statuses: statusFilter,
         searchTerm: searchTerm,
     });
 
-    // برای اینکه فیلترهای URL با state همگام شوند
-    useEffect(() => {
-        const params = new URLSearchParams();
-        if (statusFilter) params.set('statuses', statusFilter.toString());
-        if (searchTerm) params.set('searchTerm', searchTerm);
-        setSearchParams(params);
-    }, [statusFilter, searchTerm, setSearchParams]);
-
-
-
-    if (isLoading) {
-        return <CircularProgress />;
-    }
-
-    if (isError || !requests) {
-        return <Typography color="error">خطا در دریافت لیست درخواست‌ها</Typography>;
-    }
+    // این تابع برای زمانی است که کاربر فیلتر را به صورت دستی تغییر می‌دهد
+    const handleStatusFilterChange = (value: (number | '')[]) => {
+        const newParams = new URLSearchParams(searchParams);
+        newParams.delete('statuses'); // پارامترهای قبلی را پاک کن
+        value.filter(s => s !== '').forEach(s => newParams.append('statuses', s.toString())); // پارامترهای جدید را اضافه کن
+        setSearchParams(newParams);
+    };
 
     return (
         <Box sx={{ height: 700, width: '100%' }}>
-            <Typography variant="h4" gutterBottom>
-                لیست تمام درخواست‌ها
-            </Typography>
-
+            <Typography variant="h4" gutterBottom>لیست تمام درخواست‌ها</Typography>
             <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
-                <TextField
-                    label="جستجو در عنوان..."
-                    variant="outlined"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    sx={{ flexGrow: 1 }}
-                />
+                <TextField label="جستجو در عنوان..." variant="outlined" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} sx={{ flexGrow: 1 }} />
                 <FormControl sx={{ minWidth: 200 }}>
                     <InputLabel>فیلتر بر اساس وضعیت</InputLabel>
                     <Select
+                        multiple // اجازه انتخاب چند وضعیت
                         value={statusFilter}
                         label="فیلتر بر اساس وضعیت"
-                        onChange={(e) => setStatusFilter(e.target.value as number | '')}
+                        onChange={(e) => handleStatusFilterChange(e.target.value as number[])}
+                        renderValue={(selected) => (selected as number[]).map(s => statusOptions.find(opt => opt.value === s)?.label).join(', ')}
                     >
-                        <MenuItem value=""><em>همه وضعیت‌ها</em></MenuItem>
                         {statusOptions.map(opt => (
                             <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
                         ))}
@@ -119,20 +77,10 @@ const RequestsListPage = () => {
             {isError && <Typography color="error">خطا در دریافت لیست درخواست‌ها</Typography>}
             {!isLoading && !isError && (
                 <DataGrid
-                    onRowClick={(params) => navigate(`/requests/${params.id}`)}
-                    sx={{ boxShadow: 2, border: 2, borderColor: 'primary.light', '& .MuiDataGrid-cell:hover': { color: 'primary.main' }, '& .MuiDataGrid-row': { cursor: 'pointer' } }}
-                    rows={requests}
+                    rows={requests || []}
                     columns={columns}
-                    initialState={{
-                        pagination: {
-                            paginationModel: {
-                                pageSize: 10,
-                            },
-                        },
-                    }}
-                    pageSizeOptions={[5, 10, 20]}
-                    checkboxSelection
-                    disableRowSelectionOnClick
+                    onRowClick={(params) => navigate(`/requests/${params.id}`)}
+                    sx={{ '& .MuiDataGrid-row': { cursor: 'pointer' } }}
                 />
             )}
         </Box>

@@ -1,8 +1,15 @@
-import { AppBar, Box, CssBaseline, Drawer, List, ListItem, ListItemButton, ListItemText, Toolbar, Typography, Divider, ListItemIcon } from '@mui/material';
+import { useState } from 'react';
+import { AppBar, Box, CssBaseline, Drawer, List, ListItem, ListItemButton, ListItemIcon, ListItemText, Toolbar, Typography, Divider, Collapse } from '@mui/material';
 import { Outlet, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { selectCurrentUser, logOut } from '../pages/auth/authSlice';
 import LogoutIcon from '@mui/icons-material/Logout';
+import DashboardIcon from '@mui/icons-material/Dashboard';
+import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
+import FormatListBulletedIcon from '@mui/icons-material/FormatListBulleted';
+import ExpandLess from '@mui/icons-material/ExpandLess';
+import ExpandMore from '@mui/icons-material/ExpandMore';
+import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 
 const drawerWidth = 240;
 
@@ -10,92 +17,95 @@ const MainLayout = () => {
     const user = useSelector(selectCurrentUser);
     const navigate = useNavigate();
     const dispatch = useDispatch();
-
-    const menuItems = [
-        { text: 'داشبورد', path: '/' },
-        { text: 'ثبت درخواست', path: '/requests/new' },
-        { text: 'لیست درخواست‌ها', path: '/requests' },
-    ];
-
-    // آیتم منوی ادمین را به صورت شرطی اضافه کن
-    if (user && user.roles?.includes('Admin')) {
-        menuItems.push({ text: 'مدیریت کاربران', path: '/admin/users' });
-        menuItems.push({ text: 'مدیریت لیست‌ها', path: '/admin/lookups' });
-        menuItems.push({ text: 'تنظیمات سیستم', path: '/admin/settings' });
-        menuItems.push({ text: 'گزارش‌گیری', path: '/admin/reports' });
-    }
+    const [openWorklist, setOpenWorklist] = useState(true);
+    const [openAdminMenu, setOpenAdminMenu] = useState(true); // State برای منوی ادمین
 
     const handleLogout = () => {
         dispatch(logOut());
         navigate('/login');
     };
 
+    const handleNavigate = (path: string) => {
+        navigate(path);
+    };
+
+    const worklistItems = [
+        { text: 'درخواست‌های در حال انجام', statuses: [3, 5] },
+        { text: 'درخواست‌های منتظر تایید', statuses: [4] },
+        { text: 'درخواست‌های نیازمند اصلاح', statuses: [2] },
+        { text: 'همه درخواست‌ها', statuses: [] },
+    ];
+
+    const adminMenuItems = [
+        { text: 'مدیریت کاربران', path: '/admin/users' },
+        { text: 'تنظیمات سیستم', path: '/admin/settings' },
+        { text: 'مدیریت لیست‌ها', path: '/admin/lookups' },
+        { text: 'گزارش‌گیری', path: '/admin/reports' },
+    ];
 
     return (
         <Box sx={{ display: 'flex' }}>
             <CssBaseline />
-
-            {/* هدر برنامه */}
-            <AppBar
-                position="fixed"
-                // نکته کلیدی: AppBar از سمت راست به اندازه عرض منو فاصله می‌گیرد
-                sx={{ width: `calc(100% - ${drawerWidth}px)`, ml: `${drawerWidth}px` }}
-            >
+            <AppBar position="fixed" sx={{ width: `calc(100% - ${drawerWidth}px)`, ml: `${drawerWidth}px` }}>
                 <Toolbar>
-                    <Typography variant="h6" noWrap>
-                        سامانه مدیریت درخواست‌ها
-                    </Typography>
+                    <Typography variant="h6" noWrap>سامانه مدیریت درخواست‌ها</Typography>
                 </Toolbar>
             </AppBar>
-
-            {/* منوی کناری */}
-            <Drawer
-                sx={{
-                    width: drawerWidth,
-                    flexShrink: 0,
-                    '& .MuiDrawer-paper': {
-                        width: drawerWidth,
-                        boxSizing: 'border-box',
-                    },
-                }}
-                variant="permanent"
-                anchor="left" // این اطمینان می‌دهد که منو همیشه در سمت راست است
-            >
+            <Drawer variant="permanent" anchor="left" sx={{ width: drawerWidth, flexShrink: 0, '& .MuiDrawer-paper': { width: drawerWidth, boxSizing: 'border-box' } }}>
                 <Toolbar />
                 <Box sx={{ overflow: 'auto' }}>
                     <List>
-                        {menuItems.map((item) => (
-                            <ListItem key={item.text} disablePadding>
-                                <ListItemButton onClick={() => navigate(item.path)} sx={{ textAlign: 'left' }}>
-                                    <ListItemText primary={item.text} />
-                                </ListItemButton>
-                            </ListItem>
-                        ))}
+                        <ListItemButton onClick={() => handleNavigate('/')}><ListItemIcon><DashboardIcon /></ListItemIcon><ListItemText primary="داشبورد" /></ListItemButton>
+                        <ListItemButton onClick={() => handleNavigate('/requests/new')}><ListItemIcon><AddCircleOutlineIcon /></ListItemIcon><ListItemText primary="ثبت درخواست" /></ListItemButton>
+
+                        <ListItemButton onClick={() => setOpenWorklist(!openWorklist)}>
+                            <ListItemIcon><FormatListBulletedIcon /></ListItemIcon>
+                            <ListItemText primary="لیست درخواست‌ها" />
+                            {openWorklist ? <ExpandLess /> : <ExpandMore />}
+                        </ListItemButton>
+                        <Collapse in={openWorklist} timeout="auto" unmountOnExit>
+                            <List component="div" disablePadding>
+                                {worklistItems.map((item) => {
+                                    const queryParams = new URLSearchParams(item.statuses.map(s => ['statuses', s.toString()])).toString();
+                                    return (
+                                        <ListItemButton key={item.text} sx={{ pr: 4 }} onClick={() => handleNavigate(`/requests?${queryParams}`)}>
+                                            <ListItemText primary={item.text} />
+                                        </ListItemButton>
+                                    );
+                                })}
+                            </List>
+                        </Collapse>
                     </List>
                     <Divider />
-                    <List>
-                        <ListItem disablePadding>
-                            <ListItemButton onClick={handleLogout}>
-                                <ListItemIcon>
-                                    <LogoutIcon />
-                                </ListItemIcon>
-                                <ListItemText primary="خروج" />
+                    {user && user.roles?.includes('Admin') && (
+                        <List>
+                            <ListItemButton onClick={() => setOpenAdminMenu(!openAdminMenu)}>
+                                <ListItemIcon><AdminPanelSettingsIcon /></ListItemIcon>
+                                <ListItemText primary="پنل مدیریت" />
+                                {openAdminMenu ? <ExpandLess /> : <ExpandMore />}
                             </ListItemButton>
-                        </ListItem>
+                            <Collapse in={openAdminMenu} timeout="auto" unmountOnExit>
+                                <List component="div" disablePadding>
+                                    {adminMenuItems.map((item) => (
+                                        <ListItemButton key={item.text} sx={{ pr: 4 }} onClick={() => handleNavigate(item.path)}>
+                                            <ListItemText primary={item.text} />
+                                        </ListItemButton>
+                                    ))}
+                                </List>
+                            </Collapse>
+                        </List>
+                    )}
+                    <Divider />
+                    <List>
+                        <ListItemButton onClick={handleLogout}><ListItemIcon><LogoutIcon /></ListItemIcon><ListItemText primary="خروج" /></ListItemButton>
                     </List>
                 </Box>
             </Drawer>
-
-            {/* محتوای اصلی صفحه */}
-            <Box
-                component="main"
-                sx={{ flexGrow: 1, bgcolor: 'background.default', p: 3 }}
-            >
-                <Toolbar /> {/* این یک فاصله برای قرار گرفتن محتوا زیر هدر است */}
+            <Box component="main" sx={{ flexGrow: 1, p: 3, bgcolor: 'background.default' }}>
+                <Toolbar />
                 <Outlet />
             </Box>
         </Box>
-
     );
 };
 
