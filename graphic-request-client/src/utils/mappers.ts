@@ -25,3 +25,13 @@ export const mapSettingKeyToPersian = (key: string) => {
     default: return key;
   }
 };
+
+export const mapRoleToPersian = (role: string) => {
+  switch (role) {
+    case 'Admin': return 'ادمین';
+    case 'Approver': return 'تایید کننده';
+    case 'Designer': return 'طراح';
+    case 'Requester': return 'درخواست دهنده';
+    default: return role;
+  }
+};

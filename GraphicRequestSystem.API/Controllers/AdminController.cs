@@ -29,22 +29,25 @@ namespace GraphicRequestSystem.API.Controllers
         [HttpGet("users")]
         public async Task<IActionResult> GetUsersWithRoles()
         {
-            var users = await _userManager.Users
-                .Select(user => new UserDto
+            var users = await _userManager.Users.ToListAsync();
+            var userDtos = new List<UserDto>();
+
+            foreach (var user in users)
+            {
+                userDtos.Add(new UserDto
                 {
                     Id = user.Id,
+                    FirstName = user.FirstName,
+                    LastName = user.LastName,
                     Username = user.UserName,
-                    Email = user.Email
-                })
-                .ToListAsync();
-
-            foreach (var userDto in users)
-            {
-                var user = await _userManager.FindByIdAsync(userDto.Id);
-                userDto.Roles = await _userManager.GetRolesAsync(user);
+                    Email = user.Email,
+                    PhoneNumber = user.PhoneNumber,
+                    IsActive = user.IsActive,
+                    Roles = await _userManager.GetRolesAsync(user)
+                });
             }
 
-            return Ok(users);
+            return Ok(userDtos);
         }
 
         // POST: api/Admin/users/{id}/roles
@@ -291,7 +294,11 @@ namespace GraphicRequestSystem.API.Controllers
             {
                 Email = createUserDto.Email,
                 SecurityStamp = Guid.NewGuid().ToString(),
-                UserName = createUserDto.Username
+                UserName = createUserDto.Username,
+
+                FirstName = createUserDto.FirstName,
+                LastName = createUserDto.LastName,
+                PhoneNumber = createUserDto.PhoneNumber
             };
 
             var result = await _userManager.CreateAsync(user, createUserDto.Password);
@@ -306,9 +313,9 @@ namespace GraphicRequestSystem.API.Controllers
             return Ok(new { message = "کاربر با موفقیت ایجاد شد." });
         }
 
-        // DELETE: api/Admin/users/{id}
-        [HttpDelete("users/{id}")]
-        public async Task<IActionResult> DeleteUser(string id)
+        // POST: api/Admin/users/{id}/toggle-status
+        [HttpPost("users/{id}/toggle-status")]
+        public async Task<IActionResult> ToggleUserStatus(string id)
         {
             var user = await _userManager.FindByIdAsync(id);
             if (user == null)
@@ -316,13 +323,39 @@ namespace GraphicRequestSystem.API.Controllers
                 return NotFound("کاربر یافت نشد.");
             }
 
-            var result = await _userManager.DeleteAsync(user);
+            user.IsActive = !user.IsActive; 
+            var result = await _userManager.UpdateAsync(user);
+
             if (!result.Succeeded)
             {
                 return BadRequest(result.Errors);
             }
 
-            return NoContent(); // 204 No Content
+            return Ok(new { message = $"وضعیت کاربر به {(user.IsActive ? "فعال" : "غیرفعال")} تغییر کرد." });
+        }
+
+        // PUT: api/Admin/users/{id}
+        [HttpPut("users/{id}")]
+        public async Task<IActionResult> UpdateUser(string id, [FromBody] UpdateUserDto updateUserDto)
+        {
+            var user = await _userManager.FindByIdAsync(id);
+            if (user == null)
+            {
+                return NotFound("کاربر یافت نشد.");
+            }
+
+            user.Email = updateUserDto.Email;
+            user.FirstName = updateUserDto.FirstName;
+            user.LastName = updateUserDto.LastName;
+            user.PhoneNumber = updateUserDto.PhoneNumber;
+
+            var result = await _userManager.UpdateAsync(user);
+            if (!result.Succeeded)
+            {
+                return BadRequest(result.Errors);
+            }
+
+            return Ok(new { message = "اطلاعات کاربر با موفقیت به‌روز شد." });
         }
 
         //// GET: api/Admin/approvers

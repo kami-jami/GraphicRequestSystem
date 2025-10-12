@@ -55,6 +55,10 @@ namespace GraphicRequestSystem.API.Controllers
         public async Task<IActionResult> Login(LoginDto loginDto)
         {
             var user = await _userManager.FindByNameAsync(loginDto.Username);
+
+            if (user != null && !user.IsActive)
+                return Unauthorized("حساب کاربری شما غیرفعال شده است.");
+
             if (user != null && await _userManager.CheckPasswordAsync(user, loginDto.Password))
             {
                 var authClaims = new List<Claim>

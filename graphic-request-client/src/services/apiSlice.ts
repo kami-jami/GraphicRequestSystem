@@ -174,6 +174,30 @@ export const apiSlice = createApi({
         }),
         invalidatesTags: (result, error, arg) => [{ type: 'Request', id: arg.requestId }],
     }),
+    createUser: builder.mutation<any, any>({
+        query: (newUser) => ({
+            url: '/admin/users',
+            method: 'POST',
+            body: newUser,
+        }),
+        invalidatesTags: ['Users'],
+    }),
+
+    toggleUserStatus: builder.mutation<any, string>({
+        query: (userId) => ({
+            url: `/admin/users/${userId}/toggle-status`,
+            method: 'POST', // متد به POST تغییر کرد
+        }),
+        invalidatesTags: ['Users'],
+    }),
+    updateUser: builder.mutation<any, { userId: string; userData: any }>({
+        query: ({ userId, userData }) => ({
+            url: `/admin/users/${userId}`,
+            method: 'PUT',
+            body: userData,
+        }),
+        invalidatesTags: ['Users'],
+    }),
   }),
 });
 
@@ -207,4 +231,7 @@ export const {
     useLazyGetDesignerPerformanceReportQuery,
     useGetApproversQuery,
     useUpdateRequestMutation,
+    useCreateUserMutation,
+    useToggleUserStatusMutation,
+    useUpdateUserMutation,
 } = apiSlice;

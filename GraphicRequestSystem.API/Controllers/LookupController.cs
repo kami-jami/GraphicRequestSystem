@@ -43,7 +43,10 @@ namespace GraphicRequestSystem.API.Controllers
         public async Task<IActionResult> GetDesigners()
         {
             var designers = await _userManager.GetUsersInRoleAsync("Designer");
-            var result = designers.Select(d => new { d.Id, d.UserName }).ToList();
+            var result = designers
+                .Where(d => d.IsActive)
+                .Select(d => new { d.Id, d.UserName })
+                .ToList();
             return Ok(result);
         }
 
@@ -52,7 +55,10 @@ namespace GraphicRequestSystem.API.Controllers
         public async Task<IActionResult> GetApprovers()
         {
             var approvers = await _userManager.GetUsersInRoleAsync("Approver");
-            var result = approvers.Select(d => new { d.Id, d.UserName }).ToList();
+            var result = approvers
+                .Where(d => d.IsActive)
+                .Select(d => new { d.Id, d.UserName })
+                .ToList();
             return Ok(result);
         }
     }

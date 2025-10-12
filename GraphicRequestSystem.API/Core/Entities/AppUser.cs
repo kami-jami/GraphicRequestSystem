@@ -8,5 +8,9 @@ namespace GraphicRequestSystem.API.Core.Entities
         // For example:
         // public string FirstName { get; set; }
         // public string LastName { get; set; }
+        public string? FirstName { get; set; }
+        public string? LastName { get; set; }
+        public bool IsActive { get; set; } = true;
+
     }
 }
