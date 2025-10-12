@@ -242,7 +242,7 @@ namespace GraphicRequestSystem.API.Controllers
 
         // PATCH: api/Requests/{id}/return
         [HttpPatch("{id}/return")]
-        public async Task<IActionResult> ReturnForCorrection(int id, [FromBody] ReturnRequestDto returnDto)
+        public async Task<IActionResult> ReturnForCorrection(int id, [FromForm] ReturnRequestDto returnDto, List<IFormFile> files)
         {
             using var transaction = await _context.Database.BeginTransactionAsync();
             try
@@ -266,6 +266,34 @@ namespace GraphicRequestSystem.API.Controllers
                 // 1. Update the request status
                 request.Status = newStatus;
 
+
+                if (files != null && files.Count > 0)
+                {
+                    var uploadPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads");
+                    if (!Directory.Exists(uploadPath)) Directory.CreateDirectory(uploadPath);
+
+                    foreach (var file in files)
+                    {
+                        var storedFileName = $"{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
+                        var filePath = Path.Combine(uploadPath, storedFileName);
+                        using (var stream = new FileStream(filePath, FileMode.Create))
+                        {
+                            await file.CopyToAsync(stream);
+                        }
+                        var attachment = new Attachment
+                        {
+                            RequestId = id,
+                            OriginalFileName = file.FileName,
+                            StoredFileName = storedFileName,
+                            FilePath = filePath,
+                            ContentType = file.ContentType,
+                            FileSize = file.Length,
+                            UploadDate = DateTime.UtcNow
+                        };
+                        await _context.Attachments.AddAsync(attachment);
+                    }
+                }
+
                 // 2. Create a history log entry
                 var historyLog = new RequestHistory
                 {
@@ -286,6 +314,7 @@ namespace GraphicRequestSystem.API.Controllers
             }
             catch (Exception)
             {
+                await transaction.RollbackAsync();
                 return StatusCode(500, "An internal error occurred.");
             }
         }
@@ -382,7 +411,7 @@ namespace GraphicRequestSystem.API.Controllers
 
         // PATCH: api/Requests/{id}/process-approval
         [HttpPatch("{id}/process-approval")]
-        public async Task<IActionResult> ProcessApproval(int id, [FromBody] ProcessApprovalDto approvalDto)
+        public async Task<IActionResult> ProcessApproval(int id, [FromForm] ProcessApprovalDto approvalDto, List<IFormFile> files)
         {
             using var transaction = await _context.Database.BeginTransactionAsync();
             try
@@ -416,10 +445,36 @@ namespace GraphicRequestSystem.API.Controllers
                 else
                 {
                     if (string.IsNullOrEmpty(approvalDto.Comment))
-                    {
                         return BadRequest("A comment is required when rejecting a design.");
-                    }
+
                     newStatus = Core.Enums.RequestStatus.PendingRedesign;
+
+                    if (files != null && files.Count > 0)
+                    {
+                        var uploadPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads");
+                        if (!Directory.Exists(uploadPath)) Directory.CreateDirectory(uploadPath);
+
+                        foreach (var file in files)
+                        {
+                            var storedFileName = $"{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
+                            var filePath = Path.Combine(uploadPath, storedFileName);
+                            using (var stream = new FileStream(filePath, FileMode.Create))
+                            {
+                                await file.CopyToAsync(stream);
+                            }
+                            var attachment = new Attachment
+                            {
+                                RequestId = id,
+                                OriginalFileName = file.FileName,
+                                StoredFileName = storedFileName,
+                                FilePath = filePath,
+                                ContentType = file.ContentType,
+                                FileSize = file.Length,
+                                UploadDate = DateTime.UtcNow
+                            };
+                            await _context.Attachments.AddAsync(attachment);
+                        }
+                    }
                 }
 
                 // Update request status
@@ -444,6 +499,7 @@ namespace GraphicRequestSystem.API.Controllers
             }
             catch (Exception)
             {
+                await transaction.RollbackAsync();
                 return StatusCode(500, "An internal error occurred.");
             }
         }

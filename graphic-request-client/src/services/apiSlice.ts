@@ -81,8 +81,14 @@ export const apiSlice = createApi({
     getRequestComments: builder.query<any[], number>({ query: (id) => `/requests/${id}/comments`, providesTags: ['Comments'] }),
     addComment: builder.mutation<any, { requestId: number; content: string }>({ query: ({ requestId, content }) => ({ url: `/requests/${requestId}/comments`, method: 'POST', body: { content } }), invalidatesTags: ['Comments'] }),
     assignRequest: builder.mutation<any, { requestId: number; designerId: string }>({ query: ({ requestId, designerId }) => ({ url: `/requests/${requestId}/assign`, method: 'PATCH', body: { designerId } }), invalidatesTags: (result, error, arg) => [{ type: 'Request', id: arg.requestId }] }),
-    returnRequest: builder.mutation<any, { requestId: number; actorId: string; comment: string }>({ query: ({ requestId, ...body }) => ({ url: `/requests/${requestId}/return`, method: 'PATCH', body, }), invalidatesTags: (result, error, arg) => [{ type: 'Request', id: arg.requestId }] }),
-    // completeDesign: builder.mutation<any, { requestId: number; actorId: string; needsApproval: boolean; approverId?: string; comment?: string }>({ query: ({ requestId, ...body }) => ({ url: `/requests/${requestId}/complete-design`, method: 'PATCH', body, }), invalidatesTags: (result, error, arg) => [{ type: 'Request', id: arg.requestId }] }),
+    returnRequest: builder.mutation<any, FormData>({
+        query: (formData) => ({
+            url: `/requests/${formData.get('requestId')}/return`,
+            method: 'PATCH',
+            body: formData,
+        }),
+        invalidatesTags: (result, error, arg) => [{ type: 'Request', id: Number(arg.get('requestId')) }],
+    }),
     completeDesign: builder.mutation<any, FormData>({
       query: (formData) => {
           const requestId = formData.get('requestId');
@@ -93,8 +99,15 @@ export const apiSlice = createApi({
           };
       },
       invalidatesTags: (result, error, arg) => [{ type: 'Request', id: Number(arg.get('requestId')) }],
-  }),
-    processApproval: builder.mutation<any, { requestId: number; actorId: string; isApproved: boolean; comment?: string }>({ query: ({ requestId, ...body }) => ({ url: `/requests/${requestId}/process-approval`, method: 'PATCH', body, }), invalidatesTags: (result, error, arg) => [{ type: 'Request', id: arg.requestId }] }),
+    }),
+    processApproval: builder.mutation<any, FormData>({
+        query: (formData) => ({
+            url: `/requests/${formData.get('requestId')}/process-approval`,
+            method: 'PATCH',
+            body: formData,
+        }),
+        invalidatesTags: (result, error, arg) => [{ type: 'Request', id: Number(arg.get('requestId')) }],
+    }),
     resubmitRequest: builder.mutation<any, { requestId: number }>({ query: ({ requestId }) => ({ url: `/requests/${requestId}/resubmit`, method: 'PATCH', }), invalidatesTags: (result, error, arg) => [{ type: 'Request', id: arg.requestId }] }),
     resubmitForApproval: builder.mutation<any, { requestId: number }>({ query: ({ requestId }) => ({ url: `/requests/${requestId}/resubmit-for-approval`, method: 'PATCH', }), invalidatesTags: (result, error, arg) => [{ type: 'Request', id: arg.requestId }] }),
     getAvailability: builder.query<any[], { startDate: string; endDate: string }>({ query: ({ startDate, endDate }) => `/availability?startDate=${startDate}&endDate=${endDate}` }),

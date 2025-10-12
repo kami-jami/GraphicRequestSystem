@@ -42,11 +42,20 @@ const RequestActions = ({ request }: { request: any }) => {
         }
     };
 
-    const handleReturn = async (comment: string) => {
+    const handleReturn = async (comment: string, files: FileList | null) => {
         if (user?.id) {
+            const formData = new FormData();
+            formData.append('requestId', request.id);
+            formData.append('actorId', user.id);
+            formData.append('comment', comment);
+            if (files) {
+                for (let i = 0; i < files.length; i++) {
+                    formData.append('files', files[i]);
+                }
+            }
             try {
-                await returnRequest({ requestId: request.id, actorId: user.id, comment }).unwrap();
-                setReturnModalOpen(false); // بستن مودال پس از موفقیت
+                await returnRequest(formData).unwrap();
+                setReturnModalOpen(false);
             } catch (error) { console.error("Failed to return request", error); }
         }
     };
@@ -59,11 +68,21 @@ const RequestActions = ({ request }: { request: any }) => {
         }
     };
 
-    const handleReject = async (comment: string) => {
+    const handleReject = async (comment: string, files: FileList | null) => {
         if (user?.id) {
+            const formData = new FormData();
+            formData.append('requestId', request.id);
+            formData.append('actorId', user.id);
+            formData.append('isApproved', 'false');
+            formData.append('comment', comment);
+            if (files) {
+                for (let i = 0; i < files.length; i++) {
+                    formData.append('files', files[i]);
+                }
+            }
             try {
-                await processApproval({ requestId: request.id, actorId: user.id, isApproved: false, comment }).unwrap();
-                setRejectModalOpen(false); // بستن مودال پس از موفقیت
+                await processApproval(formData).unwrap();
+                setRejectModalOpen(false);
             } catch (error) { console.error("Failed to reject", error); }
         }
     };
