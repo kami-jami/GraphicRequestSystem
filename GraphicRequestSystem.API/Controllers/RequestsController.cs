@@ -8,6 +8,8 @@ using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
 using GraphicRequestSystem.API.Core;
 using GraphicRequestSystem.API.Infrastructure.Strategies;
+using Microsoft.AspNetCore.Identity;
+using System.Security.Claims;
 
 namespace GraphicRequestSystem.API.Controllers
 {
@@ -17,31 +19,47 @@ namespace GraphicRequestSystem.API.Controllers
     public class RequestsController : ControllerBase
     {
         private readonly AppDbContext _context;
-        private readonly RequestDetailStrategyFactory _strategyFactory; 
+        private readonly RequestDetailStrategyFactory _strategyFactory;
+        private readonly UserManager<AppUser> _userManager;
 
-        // ۲. سازنده را برای دریافت Factory اصلاح کنید
-        public RequestsController(AppDbContext context, RequestDetailStrategyFactory strategyFactory)
+        public RequestsController(AppDbContext context, RequestDetailStrategyFactory strategyFactory, UserManager<AppUser> userManager)
         {
             _context = context;
             _strategyFactory = strategyFactory;
+            _userManager = userManager;
         }
 
         // GET: api/Requests
         [HttpGet]
-        public async Task<IActionResult> GetRequests([FromQuery] int? status, [FromQuery] string? searchTerm)
+        public async Task<IActionResult> GetRequests([FromQuery] int[]? statuses, [FromQuery] string? searchTerm)
         {
             var query = _context.Requests
                 .Include(r => r.Requester)
                 .AsQueryable();
 
-            if (status.HasValue)
+            if (statuses != null && statuses.Length > 0)
             {
-                query = query.Where(r => (int)r.Status == status.Value);
+                query = query.Where(r => statuses.Contains((int)r.Status));
             }
 
             if (!string.IsNullOrEmpty(searchTerm))
             {
                 query = query.Where(r => r.Title.Contains(searchTerm));
+            }
+
+            var userId = User.FindFirstValue("id");
+            var currentUser = await _userManager.FindByIdAsync(userId);
+            var userRoles = await _userManager.GetRolesAsync(currentUser);
+
+            if (userRoles.Contains("Designer"))
+            {
+                // برای طراح: بر اساس نزدیک‌ترین تاریخ تحویل
+                query = query.OrderBy(r => r.DueDate);
+            }
+            else
+            {
+                // برای سایرین: بر اساس جدیدترین درخواست ثبت شده
+                query = query.OrderByDescending(r => r.SubmissionDate);
             }
 
             var requests = await query
@@ -274,7 +292,7 @@ namespace GraphicRequestSystem.API.Controllers
 
         // PATCH: api/Requests/{id}/complete-design
         [HttpPatch("{id}/complete-design")]
-        public async Task<IActionResult> CompleteDesign(int id, [FromBody] CompleteDesignDto completeDto)
+        public async Task<IActionResult> CompleteDesign(int id, [FromForm] CompleteDesignDto completeDto, List<IFormFile> files)
         {
             using var transaction = await _context.Database.BeginTransactionAsync();
             try
@@ -285,9 +303,9 @@ namespace GraphicRequestSystem.API.Controllers
                     return NotFound();
                 }
 
-                if (request.Status != Core.Enums.RequestStatus.DesignInProgress)
+                if (request.Status != Core.Enums.RequestStatus.DesignInProgress && request.Status != Core.Enums.RequestStatus.PendingRedesign)
                 {
-                    return BadRequest("This action can only be performed on a request that is in progress.");
+                    return BadRequest("This action is not valid for the current request status.");
                 }
 
                 var previousStatus = request.Status;
@@ -310,6 +328,34 @@ namespace GraphicRequestSystem.API.Controllers
 
                 // Update request status
                 request.Status = newStatus;
+
+                if (files != null && files.Count > 0)
+                {
+                    var uploadPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads");
+                    if (!Directory.Exists(uploadPath)) Directory.CreateDirectory(uploadPath);
+
+                    foreach (var file in files)
+                    {
+                        var storedFileName = $"{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
+                        var filePath = Path.Combine(uploadPath, storedFileName);
+                        using (var stream = new FileStream(filePath, FileMode.Create))
+                        {
+                            await file.CopyToAsync(stream);
+                        }
+                        var attachment = new Attachment
+                        {
+                            RequestId = id,
+                            OriginalFileName = file.FileName,
+                            StoredFileName = storedFileName,
+                            FilePath = filePath,
+                            ContentType = file.ContentType,
+                            FileSize = file.Length,
+                            UploadDate = DateTime.UtcNow
+                        };
+                        await _context.Attachments.AddAsync(attachment);
+                    }
+                }
+
 
                 // Create a history log entry
                 var historyLog = new RequestHistory
@@ -507,6 +553,12 @@ namespace GraphicRequestSystem.API.Controllers
                     break;
             }
 
+            var histories = await _context.RequestHistories
+                .Where(h => h.RequestId == id)
+                .OrderByDescending(h => h.ActionDate) // مرتب‌سازی از جدید به قدیم
+                .Select(h => new { h.Comment, h.ActionDate, ActorId = h.Actor.UserName, h.PreviousStatus, h.NewStatus })
+                .ToListAsync();
+
             var result = new
             {
                 request.Id,
@@ -532,6 +584,8 @@ namespace GraphicRequestSystem.API.Controllers
                 RequestTypeName = request.RequestType.Value, // نام فارسی نوع درخواست
                 Details = details, // آبجکت جزئیات اختصاصی
                 Attachments = attachments, // لیست پیوست‌ها
+
+                Histories = histories
             };
 
             return Ok(result);
@@ -604,6 +658,106 @@ namespace GraphicRequestSystem.API.Controllers
             await _context.SaveChangesAsync();
 
             return Ok(request);
+        }
+
+        // PUT: api/Requests/{id}
+        [HttpPut("{id}")]
+        public async Task<IActionResult> UpdateRequest(int id, [FromForm] CreateRequestDto updateDto, List<IFormFile> files)
+        {
+            var requesterId = User.FindFirstValue("id");
+            var request = await _context.Requests.Include(r => r.RequestType).FirstOrDefaultAsync(r => r.Id == id);
+
+            if (request == null) return NotFound();
+            if (request.RequesterId != requesterId) return Forbid();
+
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                // به‌روزرسانی فیلدهای عمومی
+                request.Title = updateDto.Title;
+                request.Priority = updateDto.Priority;
+                request.DueDate = updateDto.DueDate;
+
+                // به‌روزرسانی جزئیات اختصاصی
+                var strategy = _strategyFactory.GetStrategy(request.RequestType.Value);
+                await strategy.UpdateDetailsAsync(request, updateDto, _context);
+
+                // --- منطق کامل مدیریت فایل‌های پیوست ---
+
+                // ۱. حذف فایل‌های قدیمی که دیگر مورد نیاز نیستند
+                var currentAttachments = await _context.Attachments.Where(a => a.RequestId == id).ToListAsync();
+                var attachmentsToDelete = currentAttachments.Where(a => !(updateDto.ExistingAttachmentIds?.Contains(a.Id) ?? false)).ToList();
+
+                foreach (var attachment in attachmentsToDelete)
+                {
+                    try
+                    {
+                        var filePath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", attachment.StoredFileName);
+                        if (System.IO.File.Exists(filePath))
+                        {
+                            System.IO.File.Delete(filePath);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        // لاگ کردن خطا در حذف فایل فیزیکی، اما ادامه عملیات
+                        Console.WriteLine($"Error deleting file {attachment.StoredFileName}: {ex.Message}");
+                    }
+                }
+                _context.Attachments.RemoveRange(attachmentsToDelete);
+
+                // ۲. افزودن فایل‌های جدید
+                if (files != null && files.Count > 0)
+                {
+                    var uploadPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads");
+                    if (!Directory.Exists(uploadPath)) Directory.CreateDirectory(uploadPath);
+
+                    foreach (var file in files)
+                    {
+                        var storedFileName = $"{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
+                        var filePath = Path.Combine(uploadPath, storedFileName);
+                        using (var stream = new FileStream(filePath, FileMode.Create))
+                        {
+                            await file.CopyToAsync(stream);
+                        }
+                        var newAttachment = new Attachment
+                        {
+                            RequestId = id,
+                            OriginalFileName = file.FileName,
+                            StoredFileName = storedFileName,
+                            FilePath = filePath,
+                            ContentType = file.ContentType,
+                            FileSize = file.Length,
+                            UploadDate = DateTime.UtcNow
+                        };
+                        await _context.Attachments.AddAsync(newAttachment);
+                    }
+                }
+                // --- پایان منطق فایل‌ها ---
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                // ثبت در تاریخچه
+                var historyLog = new RequestHistory
+                {
+                    RequestId = id,
+                    ActionDate = DateTime.UtcNow,
+                    ActorId = requesterId,
+                    PreviousStatus = request.Status, // وضعیت تغییر نمی‌کند
+                    NewStatus = request.Status,
+                    Comment = "درخواست توسط ثبت کننده ویرایش شد."
+                };
+                await _context.RequestHistories.AddAsync(historyLog);
+                await _context.SaveChangesAsync();
+
+                return Ok(request);
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                return StatusCode(500, $"An internal error occurred: {ex.Message}");
+            }
         }
     }
 }

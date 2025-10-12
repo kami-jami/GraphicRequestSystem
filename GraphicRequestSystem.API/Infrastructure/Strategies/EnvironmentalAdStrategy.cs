@@ -32,5 +32,18 @@ namespace GraphicRequestSystem.API.Infrastructure.Strategies
             };
             await context.EnvironmentalAdDetails.AddAsync(detail);
         }
+
+        public async Task UpdateDetailsAsync(Request mainRequest, CreateRequestDto dto, AppDbContext context)
+        {
+            var details = await context.EnvironmentalAdDetails.FindAsync(mainRequest.Id);
+            if (details != null && dto.EnvironmentalAdDetails != null)
+            {
+                details.AdTypeId = dto.EnvironmentalAdDetails.AdTypeId;
+                details.Quantity = dto.EnvironmentalAdDetails.Quantity;
+                details.Description = dto.EnvironmentalAdDetails.Description;
+
+                context.EnvironmentalAdDetails.Update(details);
+            }
+        }
     }
 }

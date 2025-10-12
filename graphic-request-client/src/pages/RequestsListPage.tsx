@@ -3,9 +3,9 @@ import { Box, CircularProgress, Typography, TextField, FormControl, InputLabel, 
 import { DataGrid } from '@mui/x-data-grid'
 import type { GridColDef, GridRenderCellParams } from '@mui/x-data-grid';
 import { mapStatusToPersian, mapPriorityToPersian } from '../utils/mappers';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import moment from 'moment-jalaali';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 // تعریف ستون‌های جدول
 const columns: GridColDef[] = [
@@ -52,13 +52,30 @@ const statusOptions = [
 
 const RequestsListPage = () => {
     const navigate = useNavigate();
-    const [searchTerm, setSearchTerm] = useState('');
-    const [statusFilter, setStatusFilter] = useState<number | ''>('');
+    const [searchParams, setSearchParams] = useSearchParams();
 
+    // ۱. مقدار اولیه را از URL می‌خوانیم
+    const initialStatus = searchParams.get('statuses');
+    const initialSearchTerm = searchParams.get('searchTerm') || '';
+
+    // ۲. state را به حالت مقدار تکی برمی‌گردانیم
+    const [searchTerm, setSearchTerm] = useState(initialSearchTerm);
+    const [statusFilter, setStatusFilter] = useState<number | ''>(initialStatus ? Number(initialStatus) : '');
+
+    // ۳. فقط هنگام فراخوانی API، مقدار را به آرایه تبدیل می‌کنیم
     const { data: requests, isLoading, isError } = useGetRequestsQuery({
-        status: statusFilter,
+        statuses: statusFilter !== '' ? [statusFilter] : undefined,
         searchTerm: searchTerm,
     });
+
+    // برای اینکه فیلترهای URL با state همگام شوند
+    useEffect(() => {
+        const params = new URLSearchParams();
+        if (statusFilter) params.set('statuses', statusFilter.toString());
+        if (searchTerm) params.set('searchTerm', searchTerm);
+        setSearchParams(params);
+    }, [statusFilter, searchTerm, setSearchParams]);
+
 
 
     if (isLoading) {

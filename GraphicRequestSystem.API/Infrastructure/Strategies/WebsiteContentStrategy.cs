@@ -31,5 +31,17 @@ namespace GraphicRequestSystem.API.Infrastructure.Strategies
             };
             await context.WebsiteContentDetails.AddAsync(detail);
         }
+
+        public async Task UpdateDetailsAsync(Request mainRequest, CreateRequestDto dto, AppDbContext context)
+        {
+            var detail = await context.WebsiteContentDetails.FindAsync(mainRequest.Id);
+            if (detail != null && dto.WebsiteContentDetails != null)
+            {
+                detail.Topic = dto.WebsiteContentDetails.Topic;
+                detail.ContentTypeId = dto.WebsiteContentDetails.ContentTypeId;
+                detail.Description = dto.WebsiteContentDetails.Description;
+                context.WebsiteContentDetails.Update(detail);
+            }
+        }
     }
 }

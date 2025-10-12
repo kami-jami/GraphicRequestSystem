@@ -1,6 +1,10 @@
 import { useGetDashboardStatsQuery } from '../services/apiSlice';
 import { Box, CircularProgress, Paper, Typography } from '@mui/material';
 import Grid from '@mui/material/Grid';
+import { Link } from 'react-router-dom';
+
+const pendingStatuses = [0, 1, 2, 3, 4, 5];
+const pendingStatusesQuery = new URLSearchParams(pendingStatuses.map(s => ['statuses', s.toString()])).toString();
 
 const DashboardPage = () => {
     const { data, isLoading, isError } = useGetDashboardStatsQuery();
@@ -32,10 +36,12 @@ const DashboardPage = () => {
                     </Paper>
                 </Grid>
                 <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                    <Paper sx={{ p: 2, textAlign: 'center' }}>
-                        <Typography variant="h6">درخواست‌های در جریان</Typography>
-                        <Typography variant="h4">{data.pendingRequests}</Typography>
-                    </Paper>
+                    <Link to={`/requests?${pendingStatusesQuery}`} style={{ textDecoration: 'none' }}>
+                        <Paper sx={{ p: 2, textAlign: 'center', '&:hover': { boxShadow: 6 } }}>
+                            <Typography variant="h6">درخواست‌های در جریان</Typography>
+                            <Typography variant="h4">{data.pendingRequests}</Typography>
+                        </Paper>
+                    </Link>
                 </Grid>
                 <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                     <Paper sx={{ p: 2, textAlign: 'center' }}>

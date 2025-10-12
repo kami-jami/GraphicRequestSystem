@@ -16,6 +16,8 @@ namespace GraphicRequestSystem.API.DTOs
 
         public DateTime? DueDate { get; set; }
 
+        public List<int>? ExistingAttachmentIds { get; set; }
+
         public LabelRequestDetailDto? LabelDetails { get; set; }
         public PackagingPhotoDetailDto? PackagingPhotoDetails { get; set; }
         public InstagramPostDetailDto? InstagramPostDetails { get; set; }

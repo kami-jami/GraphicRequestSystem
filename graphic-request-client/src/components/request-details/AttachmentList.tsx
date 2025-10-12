@@ -2,7 +2,7 @@ import { Paper, Typography, List, ListItem, ListItemIcon, ListItemText, Link } f
 import AttachmentIcon from '@mui/icons-material/Attachment';
 
 
-const API_BASE_URL = 'https://localhost:7088';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 const AttachmentList = ({ attachments }: { attachments: any[] }) => {
     if (!attachments || attachments.length === 0) {

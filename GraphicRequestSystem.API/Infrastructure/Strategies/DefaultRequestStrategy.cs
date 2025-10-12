@@ -14,5 +14,10 @@ namespace GraphicRequestSystem.API.Infrastructure.Strategies
             // No specific details to process, so we do nothing.
             return Task.CompletedTask;
         }
+
+        public Task UpdateDetailsAsync(Request mainRequest, CreateRequestDto dto, AppDbContext context)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

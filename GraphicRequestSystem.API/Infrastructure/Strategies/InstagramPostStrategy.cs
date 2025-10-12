@@ -25,5 +25,17 @@ namespace GraphicRequestSystem.API.Infrastructure.Strategies
             };
             await context.InstagramPostDetails.AddAsync(detail);
         }
+
+        public async Task UpdateDetailsAsync(Request mainRequest, CreateRequestDto dto, AppDbContext context)
+        {
+            var details = await context.InstagramPostDetails.FindAsync(mainRequest.Id);
+            if (details != null && dto.InstagramPostDetails != null)
+            {
+                details.Topic = dto.InstagramPostDetails.Topic;
+                details.Description = dto.InstagramPostDetails.Description;
+
+                context.InstagramPostDetails.Update(details);
+            }
+        }
     }
 }

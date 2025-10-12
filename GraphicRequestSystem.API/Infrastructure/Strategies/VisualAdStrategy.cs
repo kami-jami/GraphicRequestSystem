@@ -32,5 +32,17 @@ namespace GraphicRequestSystem.API.Infrastructure.Strategies
             };
             await context.VisualAdDetails.AddAsync(detail);
         }
+
+        public async Task UpdateDetailsAsync(Request mainRequest, CreateRequestDto dto, AppDbContext context)
+        {
+            var detail = await context.VisualAdDetails.FindAsync(mainRequest.Id);
+            if (detail != null && dto.VisualAdDetails != null)
+            {
+                detail.AdTypeId = dto.VisualAdDetails.AdTypeId;
+                detail.Brand = dto.VisualAdDetails.Brand;
+                detail.Description = dto.VisualAdDetails.Description;
+                context.VisualAdDetails.Update(detail);
+            }
+        }
     }
 }

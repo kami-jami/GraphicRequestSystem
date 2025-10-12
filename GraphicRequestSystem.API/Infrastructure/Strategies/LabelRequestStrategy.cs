@@ -47,5 +47,24 @@ namespace GraphicRequestSystem.API.Infrastructure.Strategies
             };
             await context.LabelRequestDetails.AddAsync(labelDetail);
         }
+
+        public async Task UpdateDetailsAsync(Request mainRequest, CreateRequestDto dto, AppDbContext context)
+        {
+            var details = await context.LabelRequestDetails.FindAsync(mainRequest.Id);
+            if (details != null && dto.LabelDetails != null)
+            {
+                details.ProductNameFA = dto.LabelDetails.ProductNameFA;
+                details.ProductNameEN = dto.LabelDetails.ProductNameEN;
+                details.Brand = dto.LabelDetails.Brand;
+                details.LabelTypeId = dto.LabelDetails.LabelTypeId;
+                details.TechnicalSpecs = dto.LabelDetails.TechnicalSpecs;
+                details.Dimensions = dto.LabelDetails.Dimensions;
+                details.PrintQuantity = dto.LabelDetails.PrintQuantity;
+                details.MeasurementValue = dto.LabelDetails.MeasurementValue;
+                details.MeasurementUnitId = dto.LabelDetails.MeasurementUnitId;
+
+                context.LabelRequestDetails.Update(details);
+            }
+        }
     }
 }

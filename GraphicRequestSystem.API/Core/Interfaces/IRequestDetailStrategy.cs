@@ -11,5 +11,7 @@ namespace GraphicRequestSystem.API.Core.Interfaces
 
         // متدی که منطق پردازش جزئیات را اجرا می‌کند
         Task ProcessDetailsAsync(Request mainRequest, CreateRequestDto dto, AppDbContext context);
+
+        Task UpdateDetailsAsync(Request mainRequest, CreateRequestDto dto, AppDbContext context);
     }
 }

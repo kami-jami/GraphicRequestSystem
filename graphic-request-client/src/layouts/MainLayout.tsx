@@ -1,13 +1,15 @@
-import { AppBar, Box, CssBaseline, Drawer, List, ListItem, ListItemButton, ListItemText, Toolbar, Typography } from '@mui/material';
-import { Link as RouterLink, Outlet, useNavigate } from 'react-router-dom';
-import { useSelector } from 'react-redux';
-import { selectCurrentUser } from '../pages/auth/authSlice';
+import { AppBar, Box, CssBaseline, Drawer, List, ListItem, ListItemButton, ListItemText, Toolbar, Typography, Divider, ListItemIcon } from '@mui/material';
+import { Outlet, useNavigate } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
+import { selectCurrentUser, logOut } from '../pages/auth/authSlice';
+import LogoutIcon from '@mui/icons-material/Logout';
 
 const drawerWidth = 240;
 
 const MainLayout = () => {
     const user = useSelector(selectCurrentUser);
     const navigate = useNavigate();
+    const dispatch = useDispatch();
 
     const menuItems = [
         { text: 'داشبورد', path: '/' },
@@ -23,6 +25,10 @@ const MainLayout = () => {
         menuItems.push({ text: 'گزارش‌گیری', path: '/admin/reports' });
     }
 
+    const handleLogout = () => {
+        dispatch(logOut());
+        navigate('/login');
+    };
 
 
     return (
@@ -65,6 +71,17 @@ const MainLayout = () => {
                                 </ListItemButton>
                             </ListItem>
                         ))}
+                    </List>
+                    <Divider />
+                    <List>
+                        <ListItem disablePadding>
+                            <ListItemButton onClick={handleLogout}>
+                                <ListItemIcon>
+                                    <LogoutIcon />
+                                </ListItemIcon>
+                                <ListItemText primary="خروج" />
+                            </ListItemButton>
+                        </ListItem>
                     </List>
                 </Box>
             </Drawer>

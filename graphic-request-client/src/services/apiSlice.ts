@@ -3,7 +3,7 @@ import { setCredentials, logOut } from '../pages/auth/authSlice';
 import type { RootState } from './store';
 
 interface GetRequestsParams {
-  status?: number | '';
+  statuses?: number[];
   searchTerm?: string;
 }
 
@@ -13,7 +13,7 @@ interface GetReportParams {
 }
 
 const baseQuery = fetchBaseQuery({
-  baseUrl: 'https://localhost:7088/api',
+  baseUrl: import.meta.env.VITE_API_BASE_URL,
   prepareHeaders: (headers, { getState }) => {
     const token = (getState() as RootState).auth.token;
     if (token) {
@@ -67,8 +67,11 @@ export const apiSlice = createApi({
     getRequests: builder.query<any[], GetRequestsParams>({
         query: (params) => {
             const queryParams = new URLSearchParams();
-            if (params.status) queryParams.append('status', params.status.toString());
-            if (params.searchTerm) queryParams.append('searchTerm', params.searchTerm);
+            if (params.statuses && params.statuses.length > 0) {
+              params.statuses.forEach(status => queryParams.append('statuses', status.toString()));
+            }
+            if (params.searchTerm)
+              queryParams.append('searchTerm', params.searchTerm);
             return `/requests?${queryParams.toString()}`;
         },
         providesTags: ['Request'],
@@ -79,7 +82,18 @@ export const apiSlice = createApi({
     addComment: builder.mutation<any, { requestId: number; content: string }>({ query: ({ requestId, content }) => ({ url: `/requests/${requestId}/comments`, method: 'POST', body: { content } }), invalidatesTags: ['Comments'] }),
     assignRequest: builder.mutation<any, { requestId: number; designerId: string }>({ query: ({ requestId, designerId }) => ({ url: `/requests/${requestId}/assign`, method: 'PATCH', body: { designerId } }), invalidatesTags: (result, error, arg) => [{ type: 'Request', id: arg.requestId }] }),
     returnRequest: builder.mutation<any, { requestId: number; actorId: string; comment: string }>({ query: ({ requestId, ...body }) => ({ url: `/requests/${requestId}/return`, method: 'PATCH', body, }), invalidatesTags: (result, error, arg) => [{ type: 'Request', id: arg.requestId }] }),
-    completeDesign: builder.mutation<any, { requestId: number; actorId: string; needsApproval: boolean; approverId?: string; comment?: string }>({ query: ({ requestId, ...body }) => ({ url: `/requests/${requestId}/complete-design`, method: 'PATCH', body, }), invalidatesTags: (result, error, arg) => [{ type: 'Request', id: arg.requestId }] }),
+    // completeDesign: builder.mutation<any, { requestId: number; actorId: string; needsApproval: boolean; approverId?: string; comment?: string }>({ query: ({ requestId, ...body }) => ({ url: `/requests/${requestId}/complete-design`, method: 'PATCH', body, }), invalidatesTags: (result, error, arg) => [{ type: 'Request', id: arg.requestId }] }),
+    completeDesign: builder.mutation<any, FormData>({
+      query: (formData) => {
+          const requestId = formData.get('requestId');
+          return {
+              url: `/requests/${requestId}/complete-design`,
+              method: 'PATCH',
+              body: formData,
+          };
+      },
+      invalidatesTags: (result, error, arg) => [{ type: 'Request', id: Number(arg.get('requestId')) }],
+  }),
     processApproval: builder.mutation<any, { requestId: number; actorId: string; isApproved: boolean; comment?: string }>({ query: ({ requestId, ...body }) => ({ url: `/requests/${requestId}/process-approval`, method: 'PATCH', body, }), invalidatesTags: (result, error, arg) => [{ type: 'Request', id: arg.requestId }] }),
     resubmitRequest: builder.mutation<any, { requestId: number }>({ query: ({ requestId }) => ({ url: `/requests/${requestId}/resubmit`, method: 'PATCH', }), invalidatesTags: (result, error, arg) => [{ type: 'Request', id: arg.requestId }] }),
     resubmitForApproval: builder.mutation<any, { requestId: number }>({ query: ({ requestId }) => ({ url: `/requests/${requestId}/resubmit-for-approval`, method: 'PATCH', }), invalidatesTags: (result, error, arg) => [{ type: 'Request', id: arg.requestId }] }),
@@ -111,7 +125,7 @@ export const apiSlice = createApi({
         invalidatesTags: ['Settings'],
     }),
     getDesigners: builder.query<any[], void>({
-        query: () => '/admin/designers',
+        query: () => '/lookup/designers',
     }),
 
     getLookups: builder.query<any[], void>({
@@ -149,6 +163,17 @@ export const apiSlice = createApi({
     getDesignerPerformanceReport: builder.query<any[], GetReportParams>({
       query: ({ startDate, endDate }) => `/admin/reports/designer-performance?startDate=${startDate}&endDate=${endDate}`,
     }),
+    getApprovers: builder.query<any[], void>({
+        query: () => '/lookup/approvers',
+    }),
+    updateRequest: builder.mutation<any, { requestId: number; data: FormData }>({
+        query: ({ requestId, data }) => ({
+            url: `/requests/${requestId}`,
+            method: 'PUT',
+            body: data,
+        }),
+        invalidatesTags: (result, error, arg) => [{ type: 'Request', id: arg.requestId }],
+    }),
   }),
 });
 
@@ -180,4 +205,6 @@ export const {
     useDeleteLookupItemMutation,
     useGetDesignerPerformanceReportQuery,
     useLazyGetDesignerPerformanceReportQuery,
+    useGetApproversQuery,
+    useUpdateRequestMutation,
 } = apiSlice;

@@ -4,11 +4,17 @@ import { Box, Button, Typography, CircularProgress } from '@mui/material';
 import { useAssignRequestMutation, useReturnRequestMutation, useCompleteDesignMutation, useProcessApprovalMutation, useResubmitRequestMutation, useResubmitForApprovalMutation } from '../services/apiSlice';
 import { useState } from 'react';
 import ReturnRequestModal from '../components/ReturnRequestModal';
+import SendForApprovalModal from '../components/SendForApprovalModal';
+import ConfirmationDialog from '../components/ConfirmationDialog';
+import { useNavigate } from 'react-router-dom';
 
 const RequestActions = ({ request }: { request: any }) => {
+    const navigate = useNavigate();
     const user = useSelector(selectCurrentUser);
     const [isReturnModalOpen, setReturnModalOpen] = useState(false);
     const [isRejectModalOpen, setRejectModalOpen] = useState(false);
+    const [isApprovalModalOpen, setApprovalModalOpen] = useState(false);
+    const [isCompleteConfirmOpen, setCompleteConfirmOpen] = useState(false);
 
     // هوک‌های Mutation
     const [assignRequest, { isLoading: isAssigning }] = useAssignRequestMutation();
@@ -45,16 +51,6 @@ const RequestActions = ({ request }: { request: any }) => {
         }
     };
 
-    const handleSendForApproval = async () => {
-        if (user?.id) {
-            // TODO: در آینده باید یک UI برای انتخاب تایید کننده داشته باشیم
-            const approverId = "10d7163e-9df5-4b99-82fe-70c7af055995"; // شناسه یک تایید کننده تستی
-            try {
-                await completeDesign({ requestId: request.id, actorId: user.id, needsApproval: true, approverId }).unwrap();
-            } catch (error) { console.error("Failed to send for approval", error); }
-        }
-    };
-
     const handleApprove = async () => {
         if (user?.id) {
             try {
@@ -84,6 +80,68 @@ const RequestActions = ({ request }: { request: any }) => {
         } catch (error) { console.error("Failed to resubmit for approval", error); }
     };
 
+    const handleSendForApproval = async (comment: string, files: FileList | null, approverId: string) => {
+        if (user?.id) {
+            const formData = new FormData();
+            formData.append('requestId', request.id);
+            formData.append('actorId', user.id);
+            formData.append('needsApproval', 'true');
+            formData.append('approverId', approverId); // استفاده از approverId داینامیک
+            if (comment) formData.append('comment', comment);
+
+            if (files) {
+                for (let i = 0; i < files.length; i++) {
+                    formData.append('files', files[i]);
+                }
+            }
+
+            try {
+                await completeDesign(formData).unwrap();
+                setApprovalModalOpen(false);
+            } catch (error) {
+                console.error("Failed to send for approval", error);
+            }
+        }
+    };
+
+    const handleCompleteDirectly = async () => {
+        if (user?.id) {
+            if (window.confirm("آیا از اتمام کار و مختومه کردن این درخواست مطمئن هستید؟")) {
+                const formData = new FormData();
+                formData.append('requestId', request.id);
+                formData.append('actorId', user.id);
+                formData.append('needsApproval', 'false');
+                formData.append('comment', 'کار توسط طراح به اتمام رسید.');
+
+                try {
+                    await completeDesign(formData).unwrap();
+                } catch (error) {
+                    console.error("Failed to complete request directly", error);
+                }
+            }
+        }
+    };
+
+    const confirmCompleteDirectly = async () => {
+        if (user?.id) {
+            const formData = new FormData();
+            formData.append('requestId', request.id);
+            formData.append('actorId', user.id);
+            formData.append('needsApproval', 'false');
+            formData.append('comment', 'کار توسط طراح به اتمام رسید.');
+
+            try {
+                await completeDesign(formData).unwrap();
+                setCompleteConfirmOpen(false);
+            } catch (error) {
+                console.error("Failed to complete request directly", error);
+            }
+        }
+    };
+
+    if (request.status === 6) return null;
+    if (!user || !user.roles) return null;
+
     if (!user || !user.roles) return null;
 
     return (
@@ -97,10 +155,13 @@ const RequestActions = ({ request }: { request: any }) => {
                     </Button>
                 )} */}
 
-                {request.status === 3 && user.id === request.designerId && (
+                {(request.status === 3 || request.status === 5) && user.id === request.designerId && (
                     <Box sx={{ display: 'flex', gap: 2 }}>
-                        <Button variant="contained" color="secondary" onClick={handleSendForApproval} disabled={isCompleting}>
+                        <Button variant="contained" color="secondary" onClick={() => setApprovalModalOpen(true)} disabled={isCompleting}>
                             {isCompleting ? <CircularProgress size={24} /> : 'ارسال برای تایید'}
+                        </Button>
+                        <Button variant="contained" color="success" onClick={() => setCompleteConfirmOpen(true)} disabled={isCompleting}>
+                            اتمام کار (بدون تایید)
                         </Button>
                         <Button variant="outlined" color="warning" onClick={() => setReturnModalOpen(true)}>
                             بازگشت جهت اصلاح
@@ -119,10 +180,15 @@ const RequestActions = ({ request }: { request: any }) => {
                     </Box>
                 )}
 
-                {request.status === 2 && user.id === request.requesterId && (
-                    <Button variant="contained" onClick={handleResubmit} disabled={isResubmitting}>
-                        {isResubmitting ? <CircularProgress size={24} /> : 'ثبت اصلاحات و ارسال مجدد'}
-                    </Button>
+                {request.status === 2 && user?.id === request.requesterId && (
+                    <Box sx={{ display: 'flex', gap: 2 }}>
+                        <Button variant="contained" color="primary" onClick={() => navigate(`/requests/${request.id}/edit`)}>
+                            ویرایش درخواست
+                        </Button>
+                        <Button variant="contained" onClick={handleResubmit} disabled={isResubmitting}>
+                            {isResubmitting ? <CircularProgress size={24} /> : 'ثبت اصلاحات و ارسال مجدد'}
+                        </Button>
+                    </Box>
                 )}
 
                 {request.status === 5 && user.id === request.designerId && (
@@ -133,6 +199,20 @@ const RequestActions = ({ request }: { request: any }) => {
 
                 {/* TODO: تکمیل منطق onClick برای سایر دکمه‌ها با استفاده از mutation های مربوطه */}
             </Box>
+
+            <ConfirmationDialog
+                open={isCompleteConfirmOpen}
+                onClose={() => setCompleteConfirmOpen(false)}
+                onConfirm={confirmCompleteDirectly}
+                title="تایید اتمام کار"
+                message="آیا از اتمام کار و مختومه کردن این درخواست مطمئن هستید؟ این عمل غیرقابل بازگشت است."
+            />
+
+            <SendForApprovalModal
+                open={isApprovalModalOpen}
+                onClose={() => setApprovalModalOpen(false)}
+                onSubmit={handleSendForApproval}
+            />
 
             <ReturnRequestModal
                 open={isReturnModalOpen}

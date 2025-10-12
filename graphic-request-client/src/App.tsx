@@ -18,14 +18,13 @@ function App() {
     <>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
-
-        {/* تمام مسیرهای داخلی را داخل این نگهبان قرار می‌دهیم */}
         <Route element={<ProtectedRoute />}>
           <Route element={<MainLayout />}>
             <Route path="/" element={<DashboardPage />} />
             <Route path="/requests" element={<RequestsListPage />} />
             <Route path="/requests/new" element={<CreateRequestPage />} />
             <Route path="/requests/:id" element={<RequestDetailPage />} />
+            <Route path="/requests/:id/edit" element={<CreateRequestPage />} />
 
             <Route element={<AdminRoute />}>
               <Route path="/admin/users" element={<UserManagementPage />} />

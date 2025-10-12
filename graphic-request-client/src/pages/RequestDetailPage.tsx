@@ -1,6 +1,6 @@
 import { useParams } from 'react-router-dom';
 import { useGetRequestByIdQuery, useGetRequestCommentsQuery, useAddCommentMutation } from '../services/apiSlice';
-import { Box, CircularProgress, Paper, Typography, Grid, TextField, Button, List, ListItem } from '@mui/material';
+import { Box, CircularProgress, Paper, Typography, Grid, TextField, Button, List, ListItem, Alert, AlertTitle } from '@mui/material';
 import { mapStatusToPersian, mapPriorityToPersian } from '../utils/mappers';
 import moment from 'moment-jalaali';
 import { useState } from 'react';
@@ -16,6 +16,8 @@ import PromotionalItemDetails from '../components/request-details/PromotionalIte
 import VisualAdDetails from '../components/request-details/VisualAdDetails';
 import EnvironmentalAdDetails from '../components/request-details/EnvironmentalAdDetails';
 import MiscellaneousDetails from '../components/request-details/MiscellaneousDetails';
+
+import RequestTimeline from '../components/request-details/RequestTimeline';
 
 
 const RequestDetailPage = () => {
@@ -55,6 +57,25 @@ const RequestDetailPage = () => {
     if (isLoadingRequest || isLoadingComments) return <CircularProgress />;
     if (!request) return <Typography color="error">خطا در دریافت جزئیات درخواست</Typography>;
 
+    const renderReturnAlert = () => {
+        // وضعیت‌های برگشت خورده: 2 (PendingCorrection) و 5 (PendingRedesign)
+        if (request.status !== 2 && request.status !== 5) {
+            return null;
+        }
+
+        // پیدا کردن آخرین کامنت ثبت شده در تاریخچه
+        const lastComment = request.histories?.[0]?.comment;
+
+        if (!lastComment) return null;
+
+        return (
+            <Alert severity="warning" sx={{ mb: 3 }}>
+                <AlertTitle>این درخواست برای اصلاح بازگردانده شده است</AlertTitle>
+                <strong>دلیل:</strong> {lastComment}
+            </Alert>
+        );
+    };
+
     const renderRequestDetails = () => {
         if (!request.details) return null;
 
@@ -76,6 +97,7 @@ const RequestDetailPage = () => {
 
     return (
         <Box>
+            {renderReturnAlert()}
             <Paper sx={{ p: 3, mb: 3 }}>
                 <Typography variant="h4" gutterBottom>جزئیات درخواست: {request.title}</Typography>
                 <Grid container spacing={2}>
@@ -95,30 +117,34 @@ const RequestDetailPage = () => {
             {renderRequestDetails()}
 
             {/* جدید: نمایش لیست پیوست‌ها */}
-            {request.attachments && request.attachments.length > 0 && (
-                <Paper sx={{ p: 3, mt: 3 }}>
-                    <Typography variant="h5" gutterBottom>فایل‌های پیوست</Typography>
-                    <List>
-                        {request.attachments.map((file: any) => (
-                            <ListItem key={file.id}>
-                                <a
-                                    href={`https://localhost:7088/uploads/${file.storedFileName}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                >
-                                    {file.originalFileName}
-                                </a>
-                            </ListItem>
-                        ))}
-                    </List>
-                    <Box sx={{ mt: 3 }}>
-                        <AttachmentList attachments={request.attachments} />
-                    </Box>
-                </Paper>
-            )}
+            {
+                request.attachments && request.attachments.length > 0 && (
+                    <Paper sx={{ p: 3, mt: 3 }}>
+                        <Typography variant="h5" gutterBottom>فایل‌های پیوست</Typography>
+                        <List>
+                            {request.attachments.map((file: any) => (
+                                <ListItem key={file.id}>
+                                    <a
+                                        href={`${import.meta.env.VITE_UPLOADS_URL}${file.storedFileName}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                    >
+                                        {file.originalFileName}
+                                    </a>
+                                </ListItem>
+                            ))}
+                        </List>
+                        <Box sx={{ mt: 3 }}>
+                            <AttachmentList attachments={request.attachments} />
+                        </Box>
+                    </Paper>
+                )
+            }
+
+            <RequestTimeline histories={request.histories} />
 
             {/* بخش کامنت‌ها */}
-            <Paper sx={{ p: 3 }}>
+            <Paper sx={{ p: 3, mt: 3 }}>
                 <Typography variant="h5" gutterBottom>گفتگوها</Typography>
                 <Box sx={{ mb: 3 }}>
                     {comments && comments.length > 0 ? (
@@ -126,7 +152,7 @@ const RequestDetailPage = () => {
                             <Paper key={comment.id} sx={{ p: 2, mb: 2, bgcolor: 'grey.100' }}>
                                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                                     <Typography variant="subtitle2" component="strong">{comment.author}</Typography>
-                                    <Typography variant="caption">{moment(comment.createdAt).locale('fa').fromNow()}</Typography>
+                                    <Typography variant="caption">{moment.utc(comment.createdAt).locale('fa').fromNow()}</Typography>
                                 </Box>
                                 <Typography variant="body1">{comment.content}</Typography>
                             </Paper>
@@ -137,27 +163,29 @@ const RequestDetailPage = () => {
                 </Box>
 
                 {/* فرم ثبت کامنت جدید */}
-                <Box component="div">
-                    <TextField
-                        fullWidth
-                        multiline
-                        rows={3}
-                        label="نظر خود را بنویسید..."
-                        value={newComment}
-                        onChange={(e) => setNewComment(e.target.value)}
-                    />
-                    <Button
-                        variant="contained"
-                        sx={{ mt: 1 }}
-                        onClick={handleAddComment}
-                        disabled={isAddingComment}
-                    >
-                        {isAddingComment ? <CircularProgress size={24} /> : 'ارسال نظر'}
-                    </Button>
-                </Box>
+                {request.status !== 6 && (
+                    <Box component="div" sx={{ mt: 3 }}>
+                        <TextField
+                            fullWidth
+                            multiline
+                            rows={3}
+                            label="نظر خود را بنویسید..."
+                            value={newComment}
+                            onChange={(e) => setNewComment(e.target.value)}
+                        />
+                        <Button
+                            variant="contained"
+                            sx={{ mt: 1 }}
+                            onClick={handleAddComment}
+                            disabled={isAddingComment}
+                        >
+                            {isAddingComment ? <CircularProgress size={24} /> : 'ارسال نظر'}
+                        </Button>
+                    </Box>
+                )}
             </Paper>
             <RequestActions request={request} />
-        </Box>
+        </Box >
 
     );
 };

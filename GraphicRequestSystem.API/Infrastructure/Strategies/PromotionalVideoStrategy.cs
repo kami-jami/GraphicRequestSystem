@@ -27,5 +27,17 @@ namespace GraphicRequestSystem.API.Infrastructure.Strategies
 
             await context.PromotionalVideoDetails.AddAsync(detail);
         }
+
+        public async Task UpdateDetailsAsync(Request mainRequest, CreateRequestDto dto, AppDbContext context)
+        {
+            var detail = await context.PromotionalVideoDetails.FindAsync(mainRequest.Id);
+            if (detail != null && dto.PromotionalVideoDetails != null)
+            {
+                detail.ProductName = dto.PromotionalVideoDetails.ProductName;
+                detail.Brand = dto.PromotionalVideoDetails.Brand;
+                detail.Description = dto.PromotionalVideoDetails.Description;
+                context.PromotionalVideoDetails.Update(detail);
+            }
+        }
     }
 }

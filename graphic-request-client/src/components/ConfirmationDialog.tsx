@@ -18,7 +18,7 @@ const ConfirmationDialog = ({ open, onClose, onConfirm, title, message }: Confir
             <DialogActions>
                 <Button onClick={onClose}>انصراف</Button>
                 <Button onClick={onConfirm} color="error" autoFocus>
-                    تایید و حذف
+                    تایید
                 </Button>
             </DialogActions>
         </Dialog>

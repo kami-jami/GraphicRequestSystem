@@ -1,6 +1,8 @@
-﻿using GraphicRequestSystem.API.DTOs;
+﻿using GraphicRequestSystem.API.Core.Entities;
+using GraphicRequestSystem.API.DTOs;
 using GraphicRequestSystem.API.Infrastructure.Data;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,7 +14,12 @@ namespace GraphicRequestSystem.API.Controllers
     public class LookupController : ControllerBase
     {
         private readonly AppDbContext _context;
-        public LookupController(AppDbContext context) { _context = context; }
+        private readonly UserManager<AppUser> _userManager;
+        public LookupController(AppDbContext context, UserManager<AppUser> userManager)
+        {
+            _context = context;
+            _userManager = userManager;
+        }
 
         [HttpGet] // GET: api/Lookup
         public async Task<IActionResult> GetLookupLists()
@@ -30,6 +37,23 @@ namespace GraphicRequestSystem.API.Controllers
                 .Select(i => new { i.Id, i.Value })
                 .ToListAsync();
             return Ok(items);
+        }
+
+        [HttpGet("designers")]
+        public async Task<IActionResult> GetDesigners()
+        {
+            var designers = await _userManager.GetUsersInRoleAsync("Designer");
+            var result = designers.Select(d => new { d.Id, d.UserName }).ToList();
+            return Ok(result);
+        }
+
+        // GET: api/Admin/approvers
+        [HttpGet("approvers")]
+        public async Task<IActionResult> GetApprovers()
+        {
+            var approvers = await _userManager.GetUsersInRoleAsync("Approver");
+            var result = approvers.Select(d => new { d.Id, d.UserName }).ToList();
+            return Ok(result);
         }
     }
 }

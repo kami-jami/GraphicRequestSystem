@@ -227,13 +227,13 @@ namespace GraphicRequestSystem.API.Controllers
             return NoContent(); // 204 No Content
         }
 
-        [HttpGet("designers")]
-        public async Task<IActionResult> GetDesigners()
-        {
-            var designers = await _userManager.GetUsersInRoleAsync("Designer");
-            var result = designers.Select(d => new { d.Id, d.UserName }).ToList();
-            return Ok(result);
-        }
+        //[HttpGet("designers")]
+        //public async Task<IActionResult> GetDesigners()
+        //{
+        //    var designers = await _userManager.GetUsersInRoleAsync("Designer");
+        //    var result = designers.Select(d => new { d.Id, d.UserName }).ToList();
+        //    return Ok(result);
+        //}
 
         // GET: api/Admin/lookups
         [HttpGet("lookups")]
@@ -278,5 +278,14 @@ namespace GraphicRequestSystem.API.Controllers
 
             return Ok(result);
         }
+
+        //// GET: api/Admin/approvers
+        //[HttpGet("approvers")]
+        //public async Task<IActionResult> GetApprovers()
+        //{
+        //    var approvers = await _userManager.GetUsersInRoleAsync("Approver");
+        //    var result = approvers.Select(d => new { d.Id, d.UserName }).ToList();
+        //    return Ok(result);
+        //}
     }
 }
