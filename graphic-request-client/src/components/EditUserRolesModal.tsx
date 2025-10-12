@@ -1,5 +1,6 @@
 import { Box, Button, Modal, Typography, FormGroup, FormControlLabel, Checkbox } from '@mui/material';
 import { useState, useEffect } from 'react';
+import { mapRoleToPersian } from '../utils/mappers';
 
 const style = {
     position: 'absolute' as 'absolute',
@@ -12,7 +13,13 @@ const style = {
     boxShadow: 24,
     p: 4,
 };
-const allRoles = ['Admin', 'Approver', 'Designer', 'Requester']; // نقش‌های ثابت سیستم
+
+const allRoles = [
+    { name: 'Admin', persianName: mapRoleToPersian('Admin') },
+    { name: 'Approver', persianName: mapRoleToPersian('Approver') },
+    { name: 'Designer', persianName: mapRoleToPersian('Designer') },
+    { name: 'Requester', persianName: mapRoleToPersian('Requester') },
+];
 
 interface EditUserRolesModalProps {
     open: boolean;
@@ -24,7 +31,6 @@ interface EditUserRolesModalProps {
 const EditUserRolesModal = ({ open, onClose, onSubmit, currentUserRoles }: EditUserRolesModalProps) => {
     const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
 
-    // هر بار که مودال باز می‌شود، چک‌باکس‌ها را بر اساس نقش‌های فعلی کاربر تنظیم می‌کند
     useEffect(() => {
         if (open) {
             setSelectedRoles(currentUserRoles);
@@ -32,11 +38,11 @@ const EditUserRolesModal = ({ open, onClose, onSubmit, currentUserRoles }: EditU
     }, [open, currentUserRoles]);
 
     const handleRoleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-        const role = event.target.name;
+        const roleName = event.target.name;
         if (event.target.checked) {
-            setSelectedRoles((prev) => [...prev, role]);
+            setSelectedRoles((prev) => [...prev, roleName]);
         } else {
-            setSelectedRoles((prev) => prev.filter((r) => r !== role));
+            setSelectedRoles((prev) => prev.filter((r) => r !== roleName));
         }
     };
 
@@ -51,15 +57,15 @@ const EditUserRolesModal = ({ open, onClose, onSubmit, currentUserRoles }: EditU
                 <FormGroup sx={{ mt: 2 }}>
                     {allRoles.map((role) => (
                         <FormControlLabel
-                            key={role}
+                            key={role.name}
                             control={
                                 <Checkbox
-                                    checked={selectedRoles.includes(role)}
+                                    checked={selectedRoles.includes(role.name)}
                                     onChange={handleRoleChange}
-                                    name={role}
+                                    name={role.name}
                                 />
                             }
-                            label={role}
+                            label={role.persianName}
                         />
                     ))}
                 </FormGroup>

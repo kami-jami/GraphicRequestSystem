@@ -20,7 +20,7 @@ const RequestTimeline = ({ histories }: { histories: any[] }) => {
                             variant="body2"
                             color="text.secondary"
                         >
-                            {moment(history.actionDate).locale('fa').format('jYYYY/jMM/jDD HH:mm')}
+                            {moment.utc(history.actionDate).local().locale('fa').format('jYYYY/jMM/jDD HH:mm')}
                         </TimelineOppositeContent>
                         <TimelineSeparator>
                             <TimelineConnector />

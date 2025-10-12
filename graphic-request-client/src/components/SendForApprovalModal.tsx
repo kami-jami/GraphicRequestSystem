@@ -1,5 +1,5 @@
-import { Box, Button, Modal, TextField, Typography, CircularProgress, FormControl, InputLabel, Select, MenuItem } from '@mui/material';
-import { useState } from 'react';
+import { Box, Button, Modal, TextField, Typography, FormControl, InputLabel, Select, MenuItem, CircularProgress } from '@mui/material';
+import { useState, useEffect } from 'react';
 import { useGetApproversQuery } from '../services/apiSlice';
 import { useDispatch } from 'react-redux';
 import { showNotification } from '../services/notificationSlice';
@@ -21,6 +21,8 @@ interface SendForApprovalModalProps {
     open: boolean;
     onClose: () => void;
     onSubmit: (comment: string, files: FileList | null, approverId: string) => void;
+    initialComment?: string;
+    initialFiles?: any[];
 }
 
 const SendForApprovalModal = ({ open, onClose, onSubmit }: SendForApprovalModalProps) => {
@@ -29,6 +31,15 @@ const SendForApprovalModal = ({ open, onClose, onSubmit }: SendForApprovalModalP
     const [comment, setComment] = useState('');
     const [files, setFiles] = useState<FileList | null>(null);
     const [selectedApproverId, setSelectedApproverId] = useState('');
+
+    useEffect(() => {
+        // هنگام باز شدن مودال، فیلدها را ریست کنید
+        if (open) {
+            setComment('');
+            setFiles(null);
+            setSelectedApproverId('');
+        }
+    }, [open]);
 
     const handleSubmit = () => {
         if (!selectedApproverId) {
@@ -69,12 +80,13 @@ const SendForApprovalModal = ({ open, onClose, onSubmit }: SendForApprovalModalP
                     onChange={(e) => setComment(e.target.value)}
                     margin="normal"
                 />
-                <Button variant="contained" component="label" sx={{ mt: 2, width: '100%' }}>
+                <Button variant="outlined" component="label" sx={{ mt: 1, width: '100%' }}>
                     پیوست فایل (اختیاری)
                     <input type="file" hidden multiple onChange={(e) => setFiles(e.target.files)} />
                 </Button>
                 {files && files.length > 0 && (
-                    <Box>
+                    <Box sx={{ mt: 1 }}>
+                        <Typography variant="caption">فایل‌های انتخاب شده:</Typography>
                         <ul>
                             {[...files].map((file, index) => <li key={index}><Typography variant="caption">{file.name}</Typography></li>)}
                         </ul>

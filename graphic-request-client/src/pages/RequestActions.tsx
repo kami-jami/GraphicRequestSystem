@@ -1,44 +1,36 @@
 import { useSelector } from 'react-redux';
 import { selectCurrentUser } from './auth/authSlice';
 import { Box, Button, Typography, CircularProgress } from '@mui/material';
-import { useAssignRequestMutation, useReturnRequestMutation, useCompleteDesignMutation, useProcessApprovalMutation, useResubmitRequestMutation, useResubmitForApprovalMutation } from '../services/apiSlice';
+import { useAssignRequestMutation, useReturnRequestMutation, useCompleteDesignMutation, useProcessApprovalMutation, useResubmitRequestMutation } from '../services/apiSlice';
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import ReturnRequestModal from '../components/ReturnRequestModal';
 import SendForApprovalModal from '../components/SendForApprovalModal';
 import ConfirmationDialog from '../components/ConfirmationDialog';
-import { useNavigate } from 'react-router-dom';
 
 const RequestActions = ({ request }: { request: any }) => {
-    const navigate = useNavigate();
     const user = useSelector(selectCurrentUser);
+    const navigate = useNavigate();
     const [isReturnModalOpen, setReturnModalOpen] = useState(false);
     const [isRejectModalOpen, setRejectModalOpen] = useState(false);
     const [isApprovalModalOpen, setApprovalModalOpen] = useState(false);
     const [isCompleteConfirmOpen, setCompleteConfirmOpen] = useState(false);
+    const [approvalModalData, setApprovalModalData] = useState({ initialComment: '', initialFiles: [] });
 
-    // هوک‌های Mutation
+
     const [assignRequest, { isLoading: isAssigning }] = useAssignRequestMutation();
     const [returnRequest, { isLoading: isReturning }] = useReturnRequestMutation();
     const [completeDesign, { isLoading: isCompleting }] = useCompleteDesignMutation();
     const [processApproval, { isLoading: isProcessing }] = useProcessApprovalMutation();
     const [resubmitRequest, { isLoading: isResubmitting }] = useResubmitRequestMutation();
-    const [resubmitForApproval, { isLoading: isResubmittingForApproval }] = useResubmitForApprovalMutation();
 
 
 
     const handleAssign = async () => {
-        console.log("دکمه تخصیص کلیک شد. اطلاعات کاربر فعلی:", user);
-
         if (user?.id) {
-            console.log(`در حال تلاش برای تخصیص درخواست شماره ${request.id} به کاربر با شناسه ${user.id}`);
             try {
                 await assignRequest({ requestId: request.id, designerId: user.id }).unwrap();
-                console.log("تخصیص با موفقیت در سرور ثبت شد.");
-            } catch (error) {
-                console.error("خطا در هنگام ارسال درخواست تخصیص:", error);
-            }
-        } else {
-            console.error("خطا: دکمه تخصیص کلیک شد، اما شناسه کاربر (user.id) در دسترس نیست.");
+            } catch (error) { console.error("Failed to assign request", error); }
         }
     };
 
@@ -49,9 +41,7 @@ const RequestActions = ({ request }: { request: any }) => {
             formData.append('actorId', user.id);
             formData.append('comment', comment);
             if (files) {
-                for (let i = 0; i < files.length; i++) {
-                    formData.append('files', files[i]);
-                }
+                for (let i = 0; i < files.length; i++) { formData.append('files', files[i]); }
             }
             try {
                 await returnRequest(formData).unwrap();
@@ -60,10 +50,47 @@ const RequestActions = ({ request }: { request: any }) => {
         }
     };
 
+    const handleSendForApproval = async (comment: string, files: FileList | null, approverId: string) => {
+        if (user?.id) {
+            const formData = new FormData();
+            formData.append('requestId', request.id);
+            formData.append('actorId', user.id);
+            formData.append('needsApproval', 'true');
+            formData.append('approverId', approverId);
+            if (comment) formData.append('comment', comment);
+            if (files) {
+                for (let i = 0; i < files.length; i++) { formData.append('files', files[i]); }
+            }
+            try {
+                await completeDesign(formData).unwrap();
+                setApprovalModalOpen(false);
+            } catch (error) { console.error("Failed to send for approval", error); }
+        }
+    };
+
+    const confirmCompleteDirectly = async () => {
+        if (user?.id) {
+            const formData = new FormData();
+            formData.append('requestId', request.id);
+            formData.append('actorId', user.id);
+            formData.append('needsApproval', 'false');
+            formData.append('comment', 'کار توسط طراح به اتمام رسید.');
+            try {
+                await completeDesign(formData).unwrap();
+                setCompleteConfirmOpen(false);
+            } catch (error) { console.error("Failed to complete request directly", error); }
+        }
+    };
+
     const handleApprove = async () => {
         if (user?.id) {
+            const formData = new FormData();
+            formData.append('requestId', request.id);
+            formData.append('actorId', user.id);
+            formData.append('isApproved', 'true');
+            formData.append('comment', 'تایید شد.');
             try {
-                await processApproval({ requestId: request.id, actorId: user.id, isApproved: true, comment: "تایید شد" }).unwrap();
+                await processApproval(formData).unwrap();
             } catch (error) { console.error("Failed to approve", error); }
         }
     };
@@ -76,9 +103,7 @@ const RequestActions = ({ request }: { request: any }) => {
             formData.append('isApproved', 'false');
             formData.append('comment', comment);
             if (files) {
-                for (let i = 0; i < files.length; i++) {
-                    formData.append('files', files[i]);
-                }
+                for (let i = 0; i < files.length; i++) { formData.append('files', files[i]); }
             }
             try {
                 await processApproval(formData).unwrap();
@@ -93,91 +118,34 @@ const RequestActions = ({ request }: { request: any }) => {
         } catch (error) { console.error("Failed to resubmit", error); }
     };
 
-    const handleResubmitForApproval = async () => {
-        try {
-            await resubmitForApproval({ requestId: request.id }).unwrap();
-        } catch (error) { console.error("Failed to resubmit for approval", error); }
-    };
+    const openApprovalModal = () => {
+        // پیدا کردن آخرین رویداد "ارسال برای تایید"
+        const lastSubmission = request.histories
+            ?.filter((h: any) => h.newStatus === 4)
+            .sort((a: any, b: any) => new Date(b.actionDate).getTime() - new Date(a.actionDate).getTime())[0];
 
-    const handleSendForApproval = async (comment: string, files: FileList | null, approverId: string) => {
-        if (user?.id) {
-            const formData = new FormData();
-            formData.append('requestId', request.id);
-            formData.append('actorId', user.id);
-            formData.append('needsApproval', 'true');
-            formData.append('approverId', approverId); // استفاده از approverId داینامیک
-            if (comment) formData.append('comment', comment);
-
-            if (files) {
-                for (let i = 0; i < files.length; i++) {
-                    formData.append('files', files[i]);
-                }
-            }
-
-            try {
-                await completeDesign(formData).unwrap();
-                setApprovalModalOpen(false);
-            } catch (error) {
-                console.error("Failed to send for approval", error);
-            }
-        }
-    };
-
-    const handleCompleteDirectly = async () => {
-        if (user?.id) {
-            if (window.confirm("آیا از اتمام کار و مختومه کردن این درخواست مطمئن هستید؟")) {
-                const formData = new FormData();
-                formData.append('requestId', request.id);
-                formData.append('actorId', user.id);
-                formData.append('needsApproval', 'false');
-                formData.append('comment', 'کار توسط طراح به اتمام رسید.');
-
-                try {
-                    await completeDesign(formData).unwrap();
-                } catch (error) {
-                    console.error("Failed to complete request directly", error);
-                }
-            }
-        }
-    };
-
-    const confirmCompleteDirectly = async () => {
-        if (user?.id) {
-            const formData = new FormData();
-            formData.append('requestId', request.id);
-            formData.append('actorId', user.id);
-            formData.append('needsApproval', 'false');
-            formData.append('comment', 'کار توسط طراح به اتمام رسید.');
-
-            try {
-                await completeDesign(formData).unwrap();
-                setCompleteConfirmOpen(false);
-            } catch (error) {
-                console.error("Failed to complete request directly", error);
-            }
-        }
+        // تنظیم داده‌های اولیه برای مودال
+        setApprovalModalData({
+            initialComment: lastSubmission?.comment || '',
+            initialFiles: lastSubmission?.attachments || []
+        });
+        setApprovalModalOpen(true);
     };
 
     if (request.status === 6) return null;
     if (!user || !user.roles) return null;
 
-    if (!user || !user.roles) return null;
 
     return (
         <>
             <Box sx={{ mt: 3, p: 2, border: '1px solid', borderColor: 'grey.300', borderRadius: 1 }}>
                 <Typography variant="h6" gutterBottom>عملیات</Typography>
 
-                {/* {request.status === 0 && user.roles.includes('Designer') && (
-                    <Button variant="contained" onClick={handleAssign} disabled={isAssigning}>
-                        {isAssigning ? <CircularProgress size={24} /> : 'این درخواست را به من تخصیص بده'}
-                    </Button>
-                )} */}
-
+                {/* دکمه‌های طراح (برای وضعیت‌های "در حال انجام" و "منتظر طراحی مجدد") */}
                 {(request.status === 3 || request.status === 5) && user.id === request.designerId && (
-                    <Box sx={{ display: 'flex', gap: 2 }}>
-                        <Button variant="contained" color="secondary" onClick={() => setApprovalModalOpen(true)} disabled={isCompleting}>
-                            {isCompleting ? <CircularProgress size={24} /> : 'ارسال برای تایید'}
+                    <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                        <Button variant="contained" color="secondary" onClick={openApprovalModal} disabled={isCompleting}>
+                            ارسال برای تایید
                         </Button>
                         <Button variant="contained" color="success" onClick={() => setCompleteConfirmOpen(true)} disabled={isCompleting}>
                             اتمام کار (بدون تایید)
@@ -188,6 +156,7 @@ const RequestActions = ({ request }: { request: any }) => {
                     </Box>
                 )}
 
+                {/* دکمه‌های تایید کننده */}
                 {request.status === 4 && user.id === request.approverId && (
                     <Box sx={{ display: 'flex', gap: 2 }}>
                         <Button variant="contained" color="success" onClick={handleApprove} disabled={isProcessing}>
@@ -199,50 +168,24 @@ const RequestActions = ({ request }: { request: any }) => {
                     </Box>
                 )}
 
-                {request.status === 2 && user?.id === request.requesterId && (
+                {/* دکمه‌های درخواست‌دهنده */}
+                {request.status === 2 && user.id === request.requesterId && (
                     <Box sx={{ display: 'flex', gap: 2 }}>
                         <Button variant="contained" color="primary" onClick={() => navigate(`/requests/${request.id}/edit`)}>
                             ویرایش درخواست
                         </Button>
                         <Button variant="contained" onClick={handleResubmit} disabled={isResubmitting}>
-                            {isResubmitting ? <CircularProgress size={24} /> : 'ثبت اصلاحات و ارسال مجدد'}
+                            ارسال مجدد
                         </Button>
                     </Box>
                 )}
-
-                {request.status === 5 && user.id === request.designerId && (
-                    <Button variant="contained" color="secondary" onClick={handleResubmitForApproval} disabled={isResubmittingForApproval}>
-                        {isResubmittingForApproval ? <CircularProgress size={24} /> : 'ارسال مجدد برای تایید'}
-                    </Button>
-                )}
-
-                {/* TODO: تکمیل منطق onClick برای سایر دکمه‌ها با استفاده از mutation های مربوطه */}
             </Box>
 
-            <ConfirmationDialog
-                open={isCompleteConfirmOpen}
-                onClose={() => setCompleteConfirmOpen(false)}
-                onConfirm={confirmCompleteDirectly}
-                title="تایید اتمام کار"
-                message="آیا از اتمام کار و مختومه کردن این درخواست مطمئن هستید؟ این عمل غیرقابل بازگشت است."
-            />
-
-            <SendForApprovalModal
-                open={isApprovalModalOpen}
-                onClose={() => setApprovalModalOpen(false)}
-                onSubmit={handleSendForApproval}
-            />
-
-            <ReturnRequestModal
-                open={isReturnModalOpen}
-                onClose={() => setReturnModalOpen(false)}
-                onSubmit={handleReturn}
-            />
-            <ReturnRequestModal
-                open={isRejectModalOpen}
-                onClose={() => setRejectModalOpen(false)}
-                onSubmit={handleReject}
-            />
+            <SendForApprovalModal open={isApprovalModalOpen} onClose={() => setApprovalModalOpen(false)} onSubmit={handleSendForApproval} initialComment={approvalModalData.initialComment}
+                initialFiles={approvalModalData.initialFiles} />
+            <ReturnRequestModal open={isReturnModalOpen} onClose={() => setReturnModalOpen(false)} onSubmit={handleReturn} />
+            <ReturnRequestModal open={isRejectModalOpen} onClose={() => setRejectModalOpen(false)} onSubmit={handleReject} />
+            <ConfirmationDialog open={isCompleteConfirmOpen} onClose={() => setCompleteConfirmOpen(false)} onConfirm={confirmCompleteDirectly} title="تایید اتمام کار" message="آیا از اتمام کار و مختومه کردن این درخواست مطمئن هستید؟" />
         </>
     );
 };

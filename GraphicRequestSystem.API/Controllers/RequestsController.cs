@@ -156,14 +156,20 @@ namespace GraphicRequestSystem.API.Controllers
                 await _context.SaveChangesAsync(); // Save to get the newRequest.Id
 
 
-                var strategy = _strategyFactory.GetStrategy(requestTypeItem.Value);
+                var historyLog = new RequestHistory
+                {
+                    RequestId = newRequest.Id,
+                    ActionDate = DateTime.UtcNow,
+                    ActorId = requesterId,
+                    PreviousStatus = RequestStatus.Submitted, // وضعیت اولیه
+                    NewStatus = newRequest.Status,
+                    Comment = "درخواست جدید ثبت و به صورت خودکار به طراح تخصیص داده شد."
+                };
+                await _context.RequestHistories.AddAsync(historyLog);
+                await _context.SaveChangesAsync();
 
-                await strategy.ProcessDetailsAsync(newRequest, requestDto, _context);
 
 
-                
-
-                
                 if (files != null && files.Count > 0)
                 {
                     // پوشه آپلود را مشخص می‌کنیم (مثلا wwwroot/uploads)
@@ -186,6 +192,7 @@ namespace GraphicRequestSystem.API.Controllers
                         var attachment = new Attachment
                         {
                             RequestId = newRequest.Id,
+                            RequestHistoryId = historyLog.Id,
                             OriginalFileName = file.FileName,
                             StoredFileName = storedFileName,
                             FilePath = filePath,
@@ -195,14 +202,21 @@ namespace GraphicRequestSystem.API.Controllers
                         };
                         await _context.Attachments.AddAsync(attachment);
                     }
-                    await _context.SaveChangesAsync(); 
+                     
                 }
-                
+
+
+                var strategy = _strategyFactory.GetStrategy(requestTypeItem.Value);
+
+                await strategy.ProcessDetailsAsync(newRequest, requestDto, _context);
+
+
+                await _context.SaveChangesAsync();
 
                 // If everything is successful, commit the transaction
                 await transaction.CommitAsync();
 
-                return CreatedAtAction(nameof(GetRequests), new { id = newRequest.Id }, newRequest);
+                return Ok(newRequest);
             }
             catch (Exception)
             {
@@ -255,9 +269,9 @@ namespace GraphicRequestSystem.API.Controllers
                 }
 
                 // A request can only be returned if a designer is working on it
-                if (request.Status != Core.Enums.RequestStatus.DesignInProgress)
+                if (request.Status != Core.Enums.RequestStatus.DesignInProgress && request.Status != Core.Enums.RequestStatus.PendingRedesign)
                 {
-                    return BadRequest("This request cannot be returned as it's not in progress.");
+                    return BadRequest("This action is not valid for the current request status.");
                 }
 
                 var previousStatus = request.Status;
@@ -265,6 +279,18 @@ namespace GraphicRequestSystem.API.Controllers
 
                 // 1. Update the request status
                 request.Status = newStatus;
+
+                var historyLog = new RequestHistory
+                {
+                    RequestId = id,
+                    ActionDate = DateTime.UtcNow,
+                    ActorId = returnDto.ActorId,
+                    PreviousStatus = previousStatus,
+                    NewStatus = newStatus,
+                    Comment = returnDto.Comment
+                };
+                await _context.RequestHistories.AddAsync(historyLog);
+                await _context.SaveChangesAsync();
 
 
                 if (files != null && files.Count > 0)
@@ -283,6 +309,7 @@ namespace GraphicRequestSystem.API.Controllers
                         var attachment = new Attachment
                         {
                             RequestId = id,
+                            RequestHistoryId = historyLog.Id,
                             OriginalFileName = file.FileName,
                             StoredFileName = storedFileName,
                             FilePath = filePath,
@@ -294,17 +321,7 @@ namespace GraphicRequestSystem.API.Controllers
                     }
                 }
 
-                // 2. Create a history log entry
-                var historyLog = new RequestHistory
-                {
-                    RequestId = id,
-                    ActionDate = DateTime.UtcNow,
-                    ActorId = returnDto.ActorId,
-                    PreviousStatus = previousStatus,
-                    NewStatus = newStatus,
-                    Comment = returnDto.Comment
-                };
-                await _context.RequestHistories.AddAsync(historyLog);
+                
 
                 // 3. Save all changes
                 await _context.SaveChangesAsync();
@@ -358,6 +375,23 @@ namespace GraphicRequestSystem.API.Controllers
                 // Update request status
                 request.Status = newStatus;
 
+
+                // Create a history log entry
+                var historyLog = new RequestHistory
+                {
+                    RequestId = id,
+                    ActionDate = DateTime.UtcNow,
+                    ActorId = completeDto.ActorId,
+                    PreviousStatus = previousStatus,
+                    NewStatus = newStatus,
+                    Comment = completeDto.Comment
+                };
+                await _context.RequestHistories.AddAsync(historyLog);
+
+                await _context.RequestHistories.AddAsync(historyLog);
+                await _context.SaveChangesAsync();
+
+
                 if (files != null && files.Count > 0)
                 {
                     var uploadPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads");
@@ -374,6 +408,7 @@ namespace GraphicRequestSystem.API.Controllers
                         var attachment = new Attachment
                         {
                             RequestId = id,
+                            RequestHistoryId = historyLog.Id,
                             OriginalFileName = file.FileName,
                             StoredFileName = storedFileName,
                             FilePath = filePath,
@@ -386,21 +421,10 @@ namespace GraphicRequestSystem.API.Controllers
                 }
 
 
-                // Create a history log entry
-                var historyLog = new RequestHistory
-                {
-                    RequestId = id,
-                    ActionDate = DateTime.UtcNow,
-                    ActorId = completeDto.ActorId,
-                    PreviousStatus = previousStatus,
-                    NewStatus = newStatus,
-                    Comment = completeDto.Comment
-                };
-                await _context.RequestHistories.AddAsync(historyLog);
+
 
                 await _context.SaveChangesAsync();
                 await transaction.CommitAsync();
-
                 return Ok(request);
             }
             catch (Exception)
@@ -444,10 +468,27 @@ namespace GraphicRequestSystem.API.Controllers
                 }
                 else
                 {
-                    if (string.IsNullOrEmpty(approvalDto.Comment))
-                        return BadRequest("A comment is required when rejecting a design.");
+                    //if (string.IsNullOrEmpty(approvalDto.Comment))
+                    //    return BadRequest("A comment is required when rejecting a design.");
 
                     newStatus = Core.Enums.RequestStatus.PendingRedesign;
+
+                    request.Status = newStatus;
+
+                    // Create a history log entry
+                    var historyLog = new RequestHistory
+                    {
+                        RequestId = id,
+                        ActionDate = DateTime.UtcNow,
+                        ActorId = approvalDto.ActorId,
+                        PreviousStatus = previousStatus,
+                        NewStatus = newStatus,
+                        Comment = approvalDto.Comment
+                    };
+                    await _context.RequestHistories.AddAsync(historyLog);
+                    await _context.SaveChangesAsync();
+
+
 
                     if (files != null && files.Count > 0)
                     {
@@ -465,6 +506,7 @@ namespace GraphicRequestSystem.API.Controllers
                             var attachment = new Attachment
                             {
                                 RequestId = id,
+                                RequestHistoryId = historyLog.Id,
                                 OriginalFileName = file.FileName,
                                 StoredFileName = storedFileName,
                                 FilePath = filePath,
@@ -478,23 +520,8 @@ namespace GraphicRequestSystem.API.Controllers
                 }
 
                 // Update request status
-                request.Status = newStatus;
-
-                // Create a history log entry
-                var historyLog = new RequestHistory
-                {
-                    RequestId = id,
-                    ActionDate = DateTime.UtcNow,
-                    ActorId = approvalDto.ActorId,
-                    PreviousStatus = previousStatus,
-                    NewStatus = newStatus,
-                    Comment = approvalDto.Comment
-                };
-                await _context.RequestHistories.AddAsync(historyLog);
-
                 await _context.SaveChangesAsync();
                 await transaction.CommitAsync();
-
                 return Ok(request);
             }
             catch (Exception)
@@ -571,8 +598,33 @@ namespace GraphicRequestSystem.API.Controllers
 
             var attachments = await _context.Attachments
                 .Where(a => a.RequestId == id)
-                .Select(a => new { a.Id, a.OriginalFileName, a.StoredFileName }) // فقط اطلاعات لازم
+                .Select(a => new { a.Id, a.OriginalFileName, a.StoredFileName, a.RequestHistoryId }) // فقط اطلاعات لازم
                 .ToListAsync();
+
+            var histories = await _context.RequestHistories
+               .Where(h => h.RequestId == id)
+               .OrderByDescending(h => h.ActionDate) // مرتب‌سازی از جدید به قدیم
+               .Select(h => new
+               {
+                   h.Id,
+                   h.Comment,
+                   h.ActionDate,
+                   ActorName = h.Actor.UserName, // ارسال نام کاربر به جای شناسه
+                   h.PreviousStatus,
+                   h.NewStatus
+               })
+               .ToListAsync();
+
+            // اتصال فایل‌ها به تاریخچه مربوطه
+            var historiesWithAttachments = histories.Select(h => new {
+                h.Id,
+                h.Comment,
+                h.ActionDate,
+                h.ActorName,
+                h.PreviousStatus,
+                h.NewStatus,
+                Attachments = attachments.Where(a => a.RequestHistoryId == h.Id).ToList()
+            }).ToList();
 
             object? details = null;
             switch (request.RequestType.Value)
@@ -609,12 +661,6 @@ namespace GraphicRequestSystem.API.Controllers
                     break;
             }
 
-            var histories = await _context.RequestHistories
-                .Where(h => h.RequestId == id)
-                .OrderByDescending(h => h.ActionDate) // مرتب‌سازی از جدید به قدیم
-                .Select(h => new { h.Comment, h.ActionDate, ActorId = h.Actor.UserName, h.PreviousStatus, h.NewStatus })
-                .ToListAsync();
-
             var result = new
             {
                 request.Id,
@@ -641,7 +687,7 @@ namespace GraphicRequestSystem.API.Controllers
                 Details = details, // آبجکت جزئیات اختصاصی
                 Attachments = attachments, // لیست پیوست‌ها
 
-                Histories = histories
+                Histories = historiesWithAttachments
             };
 
             return Ok(result);
@@ -762,6 +808,19 @@ namespace GraphicRequestSystem.API.Controllers
                 }
                 _context.Attachments.RemoveRange(attachmentsToDelete);
 
+                var historyLog = new RequestHistory
+                {
+                    RequestId = id,
+                    ActionDate = DateTime.UtcNow,
+                    ActorId = requesterId,
+                    PreviousStatus = request.Status, // وضعیت تغییر نمی‌کند
+                    NewStatus = request.Status,
+                    Comment = "درخواست توسط ثبت کننده ویرایش شد."
+                };
+                await _context.RequestHistories.AddAsync(historyLog);
+                await _context.SaveChangesAsync();
+
+
                 // ۲. افزودن فایل‌های جدید
                 if (files != null && files.Count > 0)
                 {
@@ -779,6 +838,7 @@ namespace GraphicRequestSystem.API.Controllers
                         var newAttachment = new Attachment
                         {
                             RequestId = id,
+                            RequestHistoryId = historyLog.Id,
                             OriginalFileName = file.FileName,
                             StoredFileName = storedFileName,
                             FilePath = filePath,
@@ -789,24 +849,9 @@ namespace GraphicRequestSystem.API.Controllers
                         await _context.Attachments.AddAsync(newAttachment);
                     }
                 }
-                // --- پایان منطق فایل‌ها ---
 
                 await _context.SaveChangesAsync();
                 await transaction.CommitAsync();
-
-                // ثبت در تاریخچه
-                var historyLog = new RequestHistory
-                {
-                    RequestId = id,
-                    ActionDate = DateTime.UtcNow,
-                    ActorId = requesterId,
-                    PreviousStatus = request.Status, // وضعیت تغییر نمی‌کند
-                    NewStatus = request.Status,
-                    Comment = "درخواست توسط ثبت کننده ویرایش شد."
-                };
-                await _context.RequestHistories.AddAsync(historyLog);
-                await _context.SaveChangesAsync();
-
                 return Ok(request);
             }
             catch (Exception ex)

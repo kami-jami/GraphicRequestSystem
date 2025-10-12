@@ -2,7 +2,7 @@ import { Paper, Typography, List, ListItem, ListItemIcon, ListItemText, Link } f
 import AttachmentIcon from '@mui/icons-material/Attachment';
 
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+const API_UPLOADS_URL = import.meta.env.VITE_UPLOADS_URL;
 
 const AttachmentList = ({ attachments }: { attachments: any[] }) => {
     if (!attachments || attachments.length === 0) {
@@ -19,7 +19,7 @@ const AttachmentList = ({ attachments }: { attachments: any[] }) => {
                             <AttachmentIcon />
                         </ListItemIcon>
                         <Link
-                            href={`${API_BASE_URL}/uploads/${file.storedFileName}`}
+                            href={`${API_UPLOADS_URL}/${file.storedFileName}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             underline="hover"

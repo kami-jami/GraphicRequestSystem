@@ -57,6 +57,13 @@ const RequestDetailPage = () => {
     if (isLoadingRequest || isLoadingComments) return <CircularProgress />;
     if (!request) return <Typography color="error">خطا در دریافت جزئیات درخواست</Typography>;
 
+    const lastSubmission = request.histories
+        ?.filter((h: any) => h.newStatus === 4)
+        .sort((a: any, b: any) => new Date(b.actionDate).getTime() - new Date(a.actionDate).getTime())[0];
+
+    const lastSubmissionFiles = lastSubmission?.attachments || [];
+    const lastSubmissionComment = lastSubmission?.comment;
+
     const renderReturnAlert = () => {
         // وضعیت‌های برگشت خورده: 2 (PendingCorrection) و 5 (PendingRedesign)
         if (request.status !== 2 && request.status !== 5) {
@@ -98,6 +105,20 @@ const RequestDetailPage = () => {
     return (
         <Box>
             {renderReturnAlert()}
+
+            {/* --- بخش جدید: نمایش کامنت و فایل‌های نهایی برای تایید کننده --- */}
+            {request.status === 4 && (
+                <Paper sx={{ p: 2, mb: 3, border: '1px solid', borderColor: 'secondary.main' }}>
+                    <AlertTitle sx={{ fontWeight: 'bold' }}>فایل‌ها و یادداشت نهایی برای تایید:</AlertTitle>
+                    {lastSubmissionComment && (
+                        <Typography variant="body1" sx={{ mt: 1, mb: 2 }}>
+                            <strong>یادداشت طراح:</strong> {lastSubmissionComment}
+                        </Typography>
+                    )}
+                    <AttachmentList attachments={lastSubmissionFiles} />
+                </Paper>
+            )}
+
             <Paper sx={{ p: 3, mb: 3 }}>
                 <Typography variant="h4" gutterBottom>جزئیات درخواست: {request.title}</Typography>
                 <Grid container spacing={2}>
@@ -115,6 +136,12 @@ const RequestDetailPage = () => {
 
             {/* نمایش جزئیات اختصاصی */}
             {renderRequestDetails()}
+
+            {/* نمایش تمام فایل‌های تاریخچه در یک بخش جداگانه */}
+            <Box sx={{ mt: 3 }}>
+                <Typography variant="h5" gutterBottom>تاریخچه فایل‌های پیوست</Typography>
+                <AttachmentList attachments={request.attachments} />
+            </Box>
 
             {/* جدید: نمایش لیست پیوست‌ها */}
             {
