@@ -10,10 +10,13 @@ import FormatListBulletedIcon from '@mui/icons-material/FormatListBulleted';
 import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
+import { useLocation } from 'react-router-dom';
+
 
 const drawerWidth = 240;
 
 const MainLayout = () => {
+    const location = useLocation();
     const user = useSelector(selectCurrentUser);
     const navigate = useNavigate();
     const dispatch = useDispatch();
@@ -55,8 +58,8 @@ const MainLayout = () => {
                 <Toolbar />
                 <Box sx={{ overflow: 'auto' }}>
                     <List>
-                        <ListItemButton onClick={() => handleNavigate('/')}><ListItemIcon><DashboardIcon /></ListItemIcon><ListItemText primary="داشبورد" /></ListItemButton>
-                        <ListItemButton onClick={() => handleNavigate('/requests/new')}><ListItemIcon><AddCircleOutlineIcon /></ListItemIcon><ListItemText primary="ثبت درخواست" /></ListItemButton>
+                        <ListItemButton onClick={() => handleNavigate('/')} selected={location.pathname === '/'}><ListItemIcon><DashboardIcon /></ListItemIcon><ListItemText primary="داشبورد" /></ListItemButton>
+                        <ListItemButton onClick={() => handleNavigate('/requests/new')} selected={location.pathname === '/requests/new'}><ListItemIcon><AddCircleOutlineIcon /></ListItemIcon><ListItemText primary="ثبت درخواست" /></ListItemButton>
 
                         <ListItemButton onClick={() => setOpenWorklist(!openWorklist)}>
                             <ListItemIcon><FormatListBulletedIcon /></ListItemIcon>
@@ -67,8 +70,14 @@ const MainLayout = () => {
                             <List component="div" disablePadding>
                                 {worklistItems.map((item) => {
                                     const queryParams = new URLSearchParams(item.statuses.map(s => ['statuses', s.toString()])).toString();
+                                    const path = `/requests?${queryParams}`;
                                     return (
-                                        <ListItemButton key={item.text} sx={{ pr: 4 }} onClick={() => handleNavigate(`/requests?${queryParams}`)}>
+                                        <ListItemButton
+                                            key={item.text}
+                                            sx={{ pr: 4 }}
+                                            onClick={() => handleNavigate(path)}
+                                            selected={location.pathname === '/requests' && location.search === `?${queryParams}`}
+                                        >
                                             <ListItemText primary={item.text} />
                                         </ListItemButton>
                                     );
@@ -87,7 +96,12 @@ const MainLayout = () => {
                             <Collapse in={openAdminMenu} timeout="auto" unmountOnExit>
                                 <List component="div" disablePadding>
                                     {adminMenuItems.map((item) => (
-                                        <ListItemButton key={item.text} sx={{ pr: 4 }} onClick={() => handleNavigate(item.path)}>
+                                        <ListItemButton
+                                            key={item.text}
+                                            sx={{ pr: 4 }}
+                                            onClick={() => handleNavigate(item.path)}
+                                            selected={location.pathname === item.path}
+                                        >
                                             <ListItemText primary={item.text} />
                                         </ListItemButton>
                                     ))}

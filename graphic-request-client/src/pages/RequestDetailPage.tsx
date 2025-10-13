@@ -18,11 +18,14 @@ import EnvironmentalAdDetails from '../components/request-details/EnvironmentalA
 import MiscellaneousDetails from '../components/request-details/MiscellaneousDetails';
 
 import RequestTimeline from '../components/request-details/RequestTimeline';
+import { selectCurrentUser } from './auth/authSlice';
+import { useSelector } from 'react-redux';
 
 
 const RequestDetailPage = () => {
     const { id } = useParams<{ id: string }>();
     const requestId = Number(id);
+    const user = useSelector(selectCurrentUser);
 
     // واکشی اطلاعات اصلی درخواست
     const { data: request, isLoading: isLoadingRequest } = useGetRequestByIdQuery(
@@ -57,7 +60,15 @@ const RequestDetailPage = () => {
     if (isLoadingRequest || isLoadingComments) return <CircularProgress />;
     if (!request) return <Typography color="error">خطا در دریافت جزئیات درخواست</Typography>;
 
+    const isApproverView = request.status === 4 && user?.id === request.approverId;
+
+
     const lastSubmission = request.histories
+        ?.filter((h: any) => h.newStatus === 4)
+        .sort((a: any, b: any) => new Date(b.actionDate).getTime() - new Date(a.actionDate).getTime())[0];
+
+    // آخرین رویداد "ارسال برای تایید" را پیدا کن
+    const lastSubmissionForApproval = request.histories
         ?.filter((h: any) => h.newStatus === 4)
         .sort((a: any, b: any) => new Date(b.actionDate).getTime() - new Date(a.actionDate).getTime())[0];
 
@@ -101,6 +112,31 @@ const RequestDetailPage = () => {
                 return null;
         }
     };
+
+    if (isApproverView) {
+        // نمای ساده شده فقط برای تایید کننده
+        return (
+            <Box>
+                <Typography variant="h4" gutterBottom>بررسی درخواست: {request.title}</Typography>
+
+                <Paper sx={{ p: 3, mt: 3, border: '1px solid', borderColor: 'primary.main' }}>
+                    <Typography variant="h5" gutterBottom>یادداشت و فایل‌های نهایی طراح</Typography>
+
+                    {lastSubmissionForApproval?.comment ? (
+                        <Typography variant="body1" sx={{ mt: 2, mb: 2, p: 2, bgcolor: 'grey.100', borderRadius: 1 }}>
+                            <strong>یادداشت طراح:</strong> {lastSubmissionForApproval.comment}
+                        </Typography>
+                    ) : (
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>طراح یادداشتی ثبت نکرده است.</Typography>
+                    )}
+
+                    <AttachmentList attachments={lastSubmissionForApproval?.attachments || []} />
+                </Paper>
+
+                <RequestActions request={request} />
+            </Box>
+        );
+    }
 
     return (
         <Box>

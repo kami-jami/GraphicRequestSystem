@@ -21,9 +21,21 @@ const statusOptions = [
     { value: 3, label: 'در حال انجام طراحی' }, { value: 4, label: 'منتظر تایید' }, { value: 5, label: 'منتظر طراحی مجدد' },
 ];
 
+const getWorklistTitle = (statuses: string[]): string => {
+    const statusStr = statuses.sort().join(',');
+    switch (statusStr) {
+        case '3,5': return 'کارتابل: درخواست‌های در حال انجام';
+        case '4': return 'کارتابل: درخواست‌های منتظر تایید';
+        case '2': return 'کارتابل: درخواست‌های نیازمند اصلاح';
+        default: return 'لیست تمام درخواست‌ها';
+    }
+};
+
 const RequestsListPage = () => {
     const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
+    const [pageTitle, setPageTitle] = useState('لیست تمام درخواست‌ها');
+
 
     // State های داخلی برای مدیریت فیلترها
     const [searchTerm, setSearchTerm] = useState('');
@@ -31,11 +43,13 @@ const RequestsListPage = () => {
 
     // --- این useEffect مشکل را حل می‌کند ---
     useEffect(() => {
-        // هر بار که پارامترهای URL تغییر می‌کنند، state های داخلی را به‌روز کن
-        const statusesFromUrl = searchParams.getAll('statuses').map(s => Number(s));
+        const statusesFromUrl = searchParams.getAll('statuses');
         const searchTermFromUrl = searchParams.get('searchTerm') || '';
-        setStatusFilter(statusesFromUrl.length > 0 ? statusesFromUrl : []);
+
+        // هر بار که پارامترهای URL تغییر می‌کنند، state های داخلی را به‌روز کن
+        setStatusFilter(statusesFromUrl.map(s => Number(s)));
         setSearchTerm(searchTermFromUrl);
+        setPageTitle(getWorklistTitle(statusesFromUrl)); // عنوان صفحه را ست کن
     }, [searchParams]);
 
     // هوک API حالا از state های داخلی استفاده می‌کند
@@ -54,7 +68,7 @@ const RequestsListPage = () => {
 
     return (
         <Box sx={{ height: 700, width: '100%' }}>
-            <Typography variant="h4" gutterBottom>لیست تمام درخواست‌ها</Typography>
+            <Typography variant="h4" gutterBottom>{pageTitle}</Typography>
             <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
                 <TextField label="جستجو در عنوان..." variant="outlined" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} sx={{ flexGrow: 1 }} />
                 <FormControl sx={{ minWidth: 200 }}>
