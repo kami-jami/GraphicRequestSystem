@@ -1,7 +1,7 @@
 import { useSelector } from 'react-redux';
 import { selectCurrentUser } from './auth/authSlice';
 import { Box, Button, Typography, CircularProgress } from '@mui/material';
-import { useAssignRequestMutation, useReturnRequestMutation, useCompleteDesignMutation, useProcessApprovalMutation, useResubmitRequestMutation } from '../services/apiSlice';
+import { useAssignRequestMutation, useReturnRequestMutation, useCompleteDesignMutation, useProcessApprovalMutation, useResubmitRequestMutation, useStartDesignMutation } from '../services/apiSlice';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ReturnRequestModal from '../components/ReturnRequestModal';
@@ -23,6 +23,7 @@ const RequestActions = ({ request }: { request: any }) => {
     const [completeDesign, { isLoading: isCompleting }] = useCompleteDesignMutation();
     const [processApproval, { isLoading: isProcessing }] = useProcessApprovalMutation();
     const [resubmitRequest, { isLoading: isResubmitting }] = useResubmitRequestMutation();
+    const [startDesign, { isLoading: isStartingDesign }] = useStartDesignMutation();
 
 
 
@@ -132,6 +133,14 @@ const RequestActions = ({ request }: { request: any }) => {
         setApprovalModalOpen(true);
     };
 
+    const handleStartDesign = async () => {
+        try {
+            await startDesign({ requestId: request.id }).unwrap();
+        } catch (error) {
+            console.error("Failed to start design", error);
+        }
+    };
+
     if (request.status === 6) return null;
     if (!user || !user.roles) return null;
 
@@ -140,6 +149,18 @@ const RequestActions = ({ request }: { request: any }) => {
         <>
             <Box sx={{ mt: 3, p: 2, border: '1px solid', borderColor: 'grey.300', borderRadius: 1 }}>
                 <Typography variant="h6" gutterBottom>عملیات</Typography>
+
+                {/* دکمه شروع طراحی */}
+                {request.status === 1 && user.id === request.designerId && (
+                    <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                        <Button variant="contained" color="primary" onClick={handleStartDesign} disabled={isStartingDesign}>
+                            {isStartingDesign ? <CircularProgress size={24} /> : 'شروع طراحی'}
+                        </Button>
+                        <Button variant="outlined" color="warning" onClick={() => setReturnModalOpen(true)}>
+                            بازگشت جهت اصلاح
+                        </Button>
+                    </Box>
+                )}
 
                 {/* دکمه‌های طراح (برای وضعیت‌های "در حال انجام" و "منتظر طراحی مجدد") */}
                 {(request.status === 3 || request.status === 5) && user.id === request.designerId && (

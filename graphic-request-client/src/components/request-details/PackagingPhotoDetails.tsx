@@ -6,6 +6,7 @@ const PackagingPhotoDetails = ({ details }: { details: any }) => (
         <Grid container spacing={2}>
             <Grid size={{ xs: 12, sm: 6 }}><Typography><strong>نام محصول:</strong> {details.productName}</Typography></Grid>
             <Grid size={{ xs: 12, sm: 6 }}><Typography><strong>برند:</strong> {details.brand}</Typography></Grid>
+            <Grid size={{ xs: 12 }}><Typography><strong>توضیحات:</strong> {details.description}</Typography></Grid>
         </Grid>
     </Paper>
 );

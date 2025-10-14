@@ -9,9 +9,9 @@ namespace GraphicRequestSystem.API.Helpers
             return newStatus switch
             {
                 RequestStatus.Submitted => "درخواست جدید ثبت شد.",
-                RequestStatus.DesignerReview => "درخواست برای بررسی به کارتابل طراح ارسال شد.",
+                RequestStatus.DesignerReview => "درخواست ثبت و به کارتابل طراح تخصیص داده شد.",
                 RequestStatus.PendingCorrection => "درخواست جهت اصلاح به درخواست‌دهنده بازگردانده شد.",
-                RequestStatus.DesignInProgress => "طراحی درخواست آغاز شد و در حال انجام است.",
+                RequestStatus.DesignInProgress => "طراحی درخواست توسط طراح آغاز شد.",
                 RequestStatus.PendingApproval => "طراحی اولیه انجام و درخواست برای اخذ تاییدیه ارسال شد.",
                 RequestStatus.PendingRedesign => "درخواست توسط تاییدکننده برای طراحی مجدد بازگردانده شد.",
                 RequestStatus.Completed => "فرآیند درخواست با موفقیت به اتمام رسید و مختومه شد.",

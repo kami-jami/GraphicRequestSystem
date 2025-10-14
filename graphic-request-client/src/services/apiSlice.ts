@@ -81,6 +81,13 @@ export const apiSlice = createApi({
     getRequestComments: builder.query<any[], number>({ query: (id) => `/requests/${id}/comments`, providesTags: ['Comments'] }),
     addComment: builder.mutation<any, { requestId: number; content: string }>({ query: ({ requestId, content }) => ({ url: `/requests/${requestId}/comments`, method: 'POST', body: { content } }), invalidatesTags: ['Comments'] }),
     assignRequest: builder.mutation<any, { requestId: number; designerId: string }>({ query: ({ requestId, designerId }) => ({ url: `/requests/${requestId}/assign`, method: 'PATCH', body: { designerId } }), invalidatesTags: (result, error, arg) => [{ type: 'Request', id: arg.requestId }] }),
+    startDesign: builder.mutation<any, { requestId: number }>({
+        query: ({ requestId }) => ({
+            url: `/requests/${requestId}/start-design`,
+            method: 'PATCH',
+        }),
+        invalidatesTags: (result, error, arg) => [{ type: 'Request', id: arg.requestId }],
+    }),
     returnRequest: builder.mutation<any, FormData>({
         query: (formData) => ({
             url: `/requests/${formData.get('requestId')}/return`,
@@ -247,4 +254,5 @@ export const {
     useCreateUserMutation,
     useToggleUserStatusMutation,
     useUpdateUserMutation,
+    useStartDesignMutation,
 } = apiSlice;

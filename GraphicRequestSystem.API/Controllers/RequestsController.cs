@@ -11,6 +11,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Migrations;
 using System.Security.Claims;
 using System.Security.Claims;
+using GraphicRequestSystem.API.Helpers;
 
 namespace GraphicRequestSystem.API.Controllers
 {
@@ -152,15 +153,14 @@ namespace GraphicRequestSystem.API.Controllers
                     RequesterId = requesterId,
                     DueDate = requestDto.DueDate,
 
-                    // درخواست به صورت خودکار تخصیص و وضعیت آن تغییر می‌کند
-                    Status = RequestStatus.DesignInProgress,
+                    Status = RequestStatus.DesignerReview,
                     DesignerId = defaultDesignerId,
                     SubmissionDate = DateTime.UtcNow
                 };
                 await _context.Requests.AddAsync(newRequest);
-                await _context.SaveChangesAsync(); // Save to get the newRequest.Id
+                await _context.SaveChangesAsync();
 
-
+                var historyMessage = HistoryMessageHelper.GetSystemMessageForStatusChange(RequestStatus.DesignerReview); 
                 var historyLog = new RequestHistory
                 {
                     RequestId = newRequest.Id,
@@ -168,7 +168,7 @@ namespace GraphicRequestSystem.API.Controllers
                     ActorId = requesterId,
                     PreviousStatus = RequestStatus.Submitted, // وضعیت اولیه
                     NewStatus = newRequest.Status,
-                    Comment = "درخواست جدید ثبت و به صورت خودکار به طراح تخصیص داده شد."
+                    Comment = $"یادداشت سیستمی: {historyMessage}"
                 };
                 await _context.RequestHistories.AddAsync(historyLog);
                 await _context.SaveChangesAsync();
@@ -273,8 +273,9 @@ namespace GraphicRequestSystem.API.Controllers
                     return NotFound();
                 }
 
-                // A request can only be returned if a designer is working on it
-                if (request.Status != Core.Enums.RequestStatus.DesignInProgress && request.Status != Core.Enums.RequestStatus.PendingRedesign)
+                if (request.Status != Core.Enums.RequestStatus.DesignerReview && // <<-- افزودن این شرط
+                    request.Status != Core.Enums.RequestStatus.DesignInProgress &&
+                    request.Status != Core.Enums.RequestStatus.PendingRedesign)
                 {
                     return BadRequest("This action is not valid for the current request status.");
                 }
@@ -285,6 +286,12 @@ namespace GraphicRequestSystem.API.Controllers
                 // 1. Update the request status
                 request.Status = newStatus;
 
+                var finalComment = returnDto.Comment;
+                if (string.IsNullOrWhiteSpace(finalComment))
+                {
+                    finalComment = $"یادداشت سیستمی: {HistoryMessageHelper.GetSystemMessageForStatusChange(newStatus)}";
+                }
+
                 var historyLog = new RequestHistory
                 {
                     RequestId = id,
@@ -292,7 +299,7 @@ namespace GraphicRequestSystem.API.Controllers
                     ActorId = returnDto.ActorId,
                     PreviousStatus = previousStatus,
                     NewStatus = newStatus,
-                    Comment = returnDto.Comment
+                    Comment = finalComment
                 };
                 await _context.RequestHistories.AddAsync(historyLog);
                 await _context.SaveChangesAsync();
@@ -380,7 +387,11 @@ namespace GraphicRequestSystem.API.Controllers
                 // Update request status
                 request.Status = newStatus;
 
-
+                var finalComment = completeDto.Comment;
+                if (string.IsNullOrWhiteSpace(finalComment))
+                {
+                    finalComment = $"یادداشت سیستمی: {HistoryMessageHelper.GetSystemMessageForStatusChange(newStatus)}";
+                }
                 // Create a history log entry
                 var historyLog = new RequestHistory
                 {
@@ -389,7 +400,7 @@ namespace GraphicRequestSystem.API.Controllers
                     ActorId = completeDto.ActorId,
                     PreviousStatus = previousStatus,
                     NewStatus = newStatus,
-                    Comment = completeDto.Comment
+                    Comment = finalComment
                 };
                 await _context.RequestHistories.AddAsync(historyLog);
 
@@ -451,13 +462,11 @@ namespace GraphicRequestSystem.API.Controllers
                     return NotFound();
                 }
 
-                // Action is only valid if the request is pending approval
                 if (request.Status != Core.Enums.RequestStatus.PendingApproval)
                 {
                     return BadRequest("This action can only be performed on a request that is pending approval.");
                 }
 
-                // Optional but recommended: Check if the actor is the designated approver
                 if (request.ApproverId != approvalDto.ActorId)
                 {
                     return Unauthorized("You are not authorized to process this request.");
@@ -466,67 +475,62 @@ namespace GraphicRequestSystem.API.Controllers
                 var previousStatus = request.Status;
                 Core.Enums.RequestStatus newStatus;
 
+                if (approvalDto.IsApproved)
+                {
+                    newStatus = Core.Enums.RequestStatus.Completed;
+                    request.CompletionDate = DateTime.UtcNow;
+                }
+                else
+                {
+                    newStatus = Core.Enums.RequestStatus.PendingRedesign;
+                }
+
+                request.Status = newStatus;
+
+                var finalComment = approvalDto.Comment;
+                if (string.IsNullOrWhiteSpace(finalComment))
+                {
+                    finalComment = $"یادداشت سیستمی: {HistoryMessageHelper.GetSystemMessageForStatusChange(newStatus)}";
+                }
+
                 var historyLog = new RequestHistory
                 {
                     RequestId = id,
                     ActionDate = DateTime.UtcNow,
                     ActorId = approvalDto.ActorId,
                     PreviousStatus = previousStatus,
-                    Comment = approvalDto.Comment
+                    NewStatus = newStatus, 
+                    Comment = finalComment
                 };
+                await _context.RequestHistories.AddAsync(historyLog);
+                await _context.SaveChangesAsync();
 
-                if (approvalDto.IsApproved)
+                if (files != null && files.Count > 0)
                 {
-                    newStatus = Core.Enums.RequestStatus.Completed;
-                    request.CompletionDate = DateTime.UtcNow; // Set completion date on final approval
-                    historyLog.NewStatus = newStatus;
-                }
-                else
-                {
-                    //if (string.IsNullOrEmpty(approvalDto.Comment))
-                    //    return BadRequest("A comment is required when rejecting a design.");
+                    var uploadPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads");
+                    if (!Directory.Exists(uploadPath)) Directory.CreateDirectory(uploadPath);
 
-                    newStatus = Core.Enums.RequestStatus.PendingRedesign;
-                    historyLog.NewStatus = newStatus;
-
-                    await _context.RequestHistories.AddAsync(historyLog);
-                    await _context.SaveChangesAsync();
-
-
-
-                    if (files != null && files.Count > 0)
+                    foreach (var file in files)
                     {
-                        var uploadPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads");
-                        if (!Directory.Exists(uploadPath)) Directory.CreateDirectory(uploadPath);
-
-                        foreach (var file in files)
+                        var storedFileName = $"{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
+                        var filePath = Path.Combine(uploadPath, storedFileName);
+                        using (var stream = new FileStream(filePath, FileMode.Create))
                         {
-                            var storedFileName = $"{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
-                            var filePath = Path.Combine(uploadPath, storedFileName);
-                            using (var stream = new FileStream(filePath, FileMode.Create))
-                            {
-                                await file.CopyToAsync(stream);
-                            }
-                            var attachment = new Attachment
-                            {
-                                RequestId = id,
-                                RequestHistoryId = historyLog.Id,
-                                OriginalFileName = file.FileName,
-                                StoredFileName = storedFileName,
-                                FilePath = filePath,
-                                ContentType = file.ContentType,
-                                FileSize = file.Length,
-                                UploadDate = DateTime.UtcNow
-                            };
-                            await _context.Attachments.AddAsync(attachment);
+                            await file.CopyToAsync(stream);
                         }
+                        var attachment = new Attachment
+                        {
+                            RequestId = id,
+                            RequestHistoryId = historyLog.Id,
+                            OriginalFileName = file.FileName,
+                            StoredFileName = storedFileName,
+                            FilePath = filePath,
+                            ContentType = file.ContentType,
+                            FileSize = file.Length,
+                            UploadDate = DateTime.UtcNow
+                        };
+                        await _context.Attachments.AddAsync(attachment);
                     }
-                }
-
-                request.Status = newStatus;
-                if (approvalDto.IsApproved) // اگر تایید شده بود، تاریخچه را اینجا ثبت می‌کنیم
-                {
-                    await _context.RequestHistories.AddAsync(historyLog);
                 }
 
                 await _context.SaveChangesAsync();
@@ -727,7 +731,7 @@ namespace GraphicRequestSystem.API.Controllers
                 return BadRequest("This request cannot be resubmitted.");
             }
 
-            var newStatus = RequestStatus.DesignInProgress;
+            var newStatus = RequestStatus.DesignerReview;
 
             var previousStatus = request.Status;
             request.Status = newStatus;
@@ -740,7 +744,7 @@ namespace GraphicRequestSystem.API.Controllers
                 ActorId = request.RequesterId,
                 PreviousStatus = previousStatus,
                 NewStatus = request.Status,
-                Comment = "درخواست پس از اصلاحات، مجدداً برای طراح ارسال شد." // متن کامنت هم بهتر شد
+                Comment = "درخواست پس از اصلاحات، مجدداً برای طراح ارسال شد."
             };
             await _context.RequestHistories.AddAsync(historyLog);
             await _context.SaveChangesAsync();
@@ -880,6 +884,48 @@ namespace GraphicRequestSystem.API.Controllers
                 await transaction.RollbackAsync();
                 return StatusCode(500, $"An internal error occurred: {ex.Message}");
             }
+        }
+
+        // PATCH: api/Requests/{id}/start-design
+        [HttpPatch("{id}/start-design")]
+        [Authorize(Roles = "Designer")]
+        public async Task<IActionResult> StartDesign(int id)
+        {
+            var request = await _context.Requests.FindAsync(id);
+            if (request == null)
+            {
+                return NotFound();
+            }
+
+            if (request.Status != Core.Enums.RequestStatus.DesignerReview)
+            {
+                return BadRequest("This action is not valid for the current request status.");
+            }
+
+            var designerId = User.FindFirstValue("id");
+            if (request.DesignerId != designerId)
+            {
+                return Forbid("You are not assigned to this request.");
+            }
+
+            var previousStatus = request.Status;
+            request.Status = Core.Enums.RequestStatus.DesignInProgress;
+
+            var historyMessage = HistoryMessageHelper.GetSystemMessageForStatusChange(request.Status);
+            var historyLog = new RequestHistory
+            {
+                RequestId = id,
+                ActionDate = DateTime.UtcNow,
+                ActorId = designerId,
+                PreviousStatus = previousStatus,
+                NewStatus = request.Status,
+                Comment = $"یادداشت سیستمی: {historyMessage}"
+            };
+
+            await _context.RequestHistories.AddAsync(historyLog);
+            await _context.SaveChangesAsync();
+
+            return Ok(request);
         }
     }
 }

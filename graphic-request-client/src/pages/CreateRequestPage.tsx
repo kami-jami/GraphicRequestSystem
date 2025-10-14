@@ -96,7 +96,7 @@ const CreateRequestPage = () => {
         measurementValue: '',
         measurementUnitId: ''
     });
-    const [packagingPhotoDetails, setPackagingPhotoDetails] = useState({ productName: '', brand: '' });
+    const [packagingPhotoDetails, setPackagingPhotoDetails] = useState({ productName: '', brand: '', description: '' });
     const [instagramPostDetails, setInstagramPostDetails] = useState({ topic: '', description: '' });
     const [promotionalVideoDetails, setPromotionalVideoDetails] = useState({ productName: '', brand: '', description: '' });
     const [websiteContentDetails, setWebsiteContentDetails] = useState({ contentTypeId: '', topic: '', description: '' });
@@ -159,7 +159,8 @@ const CreateRequestPage = () => {
                     case RequestTypeValues.PackagingPhoto:
                         setPackagingPhotoDetails({
                             productName: existingRequestData.details.productName || '',
-                            brand: existingRequestData.details.brand || ''
+                            brand: existingRequestData.details.brand || '',
+                            description: existingRequestData.details.description || ''
                         });
                         break;
                     case RequestTypeValues.InstagramPost:
@@ -619,6 +620,16 @@ const CreateRequestPage = () => {
                         label="برند"
                         value={packagingPhotoDetails.brand}
                         onChange={(e) => setPackagingPhotoDetails({ ...packagingPhotoDetails, brand: e.target.value })}
+                        sx={{ mb: 2 }}
+                    />
+                    <TextField
+                        required
+                        fullWidth
+                        label="توضیحات"
+                        multiline
+                        rows={4}
+                        value={packagingPhotoDetails.description}
+                        onChange={(e) => setPackagingPhotoDetails({ ...packagingPhotoDetails, description: e.target.value })}
                         sx={{ mb: 2 }}
                     />
                 </Box>
