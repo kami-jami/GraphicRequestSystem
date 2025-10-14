@@ -21,7 +21,10 @@ const MainLayout = () => {
     const navigate = useNavigate();
     const dispatch = useDispatch();
     const [openWorklist, setOpenWorklist] = useState(true);
-    const [openAdminMenu, setOpenAdminMenu] = useState(true); // State برای منوی ادمین
+    const [openAdminMenu, setOpenAdminMenu] = useState(true);
+
+    const userDisplayName = (user?.firstName || user?.lastName) ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : user?.username;
+
 
     const handleLogout = () => {
         dispatch(logOut());
@@ -50,8 +53,9 @@ const MainLayout = () => {
         <Box sx={{ display: 'flex' }}>
             <CssBaseline />
             <AppBar position="fixed" sx={{ width: `calc(100% - ${drawerWidth}px)`, ml: `${drawerWidth}px` }}>
-                <Toolbar>
+                <Toolbar sx={{ display: 'flex', justifyContent: 'space-between' }}>
                     <Typography variant="h6" noWrap>سامانه مدیریت درخواست‌ها</Typography>
+                    <Typography>خوش آمدید، {userDisplayName}</Typography>
                 </Toolbar>
             </AppBar>
             <Drawer variant="permanent" anchor="left" sx={{ width: drawerWidth, flexShrink: 0, '& .MuiDrawer-paper': { width: drawerWidth, boxSizing: 'border-box' } }}>

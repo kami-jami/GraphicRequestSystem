@@ -37,10 +37,10 @@ namespace GraphicRequestSystem.API.Controllers
                 userDtos.Add(new UserDto
                 {
                     Id = user.Id,
-                    FirstName = user.FirstName,
-                    LastName = user.LastName,
                     Username = user.UserName,
                     Email = user.Email,
+                    FirstName = user.FirstName,
+                    LastName = user.LastName,
                     PhoneNumber = user.PhoneNumber,
                     IsActive = user.IsActive,
                     Roles = await _userManager.GetRolesAsync(user)

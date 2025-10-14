@@ -13,7 +13,7 @@ const columns: GridColDef[] = [
     { field: 'status', headerName: 'وضعیت', width: 150, valueFormatter: (value) => mapStatusToPersian(value) },
     { field: 'priority', headerName: 'اولویت', width: 120, valueFormatter: (value) => mapPriorityToPersian(value) },
     { field: 'requesterName', headerName: 'درخواست‌دهنده', width: 150 },
-    { field: 'dueDate', headerName: 'تاریخ تحویل', width: 180, valueFormatter: (value) => value ? moment(value).locale('fa').format('YYYY/MM/DD HH:mm') : '' },
+    { field: 'dueDate', headerName: 'تاریخ تحویل', width: 180, valueFormatter: (value) => value ? moment(value).locale('fa').format('jYYYY/jMM/jDD') : '' },
 ];
 
 const statusOptions = [

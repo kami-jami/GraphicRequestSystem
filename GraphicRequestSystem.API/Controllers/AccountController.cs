@@ -65,6 +65,8 @@ namespace GraphicRequestSystem.API.Controllers
                 {
                     new Claim("id", user.Id),
                     new Claim("username", user.UserName),
+                    new Claim("firstName", user.FirstName ?? ""),
+                    new Claim("lastName", user.LastName ?? ""),
                     new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
                 };
 

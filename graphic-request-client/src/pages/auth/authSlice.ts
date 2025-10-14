@@ -4,9 +4,11 @@ import type { RootState } from '../../services/store';
 import { jwtDecode } from 'jwt-decode';
 
 type UserState = {
-  name: string | null;
-  roles: string[] | null; // ما همیشه این را به عنوان آرایه می‌خواهیم
-  id: string;
+    username: string | null;
+    firstName: string | null;
+    lastName: string | null; 
+    roles: string[] | null;
+    id: string | null;
 };
 
 type AuthState = {
@@ -25,7 +27,9 @@ const decodeAndNormalizeToken = (token: string): UserState | null => {
     }
     const userId = decoded.id || decoded.nameid || decoded.sub;
     return {
-        name: decoded.name,
+        username: decoded.username || decoded.name,
+        firstName: decoded.firstName,
+        lastName: decoded.lastName,
         roles: roles,
         id: userId,
     };

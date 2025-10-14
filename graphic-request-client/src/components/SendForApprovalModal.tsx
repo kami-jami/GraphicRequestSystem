@@ -64,7 +64,7 @@ const SendForApprovalModal = ({ open, onClose, onSubmit }: SendForApprovalModalP
                         >
                             {approvers?.map((approver) => (
                                 <MenuItem key={approver.id} value={approver.id}>
-                                    {approver.userName}
+                                    {approver.firstName} {approver.lastName} ({approver.userName})
                                 </MenuItem>
                             ))}
                         </Select>

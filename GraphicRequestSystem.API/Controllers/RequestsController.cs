@@ -1,14 +1,15 @@
-﻿using GraphicRequestSystem.API.Core.Entities;
+﻿using GraphicRequestSystem.API.Core;
+using GraphicRequestSystem.API.Core.Entities;
 using GraphicRequestSystem.API.Core.Enums;
 using GraphicRequestSystem.API.DTOs;
 using GraphicRequestSystem.API.Infrastructure.Data;
+using GraphicRequestSystem.API.Infrastructure.Strategies;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.AspNetCore.Authorization;
+using Microsoft.EntityFrameworkCore.Migrations;
 using System.Security.Claims;
-using GraphicRequestSystem.API.Core;
-using GraphicRequestSystem.API.Infrastructure.Strategies;
-using Microsoft.AspNetCore.Identity;
 using System.Security.Claims;
 
 namespace GraphicRequestSystem.API.Controllers
@@ -68,7 +69,11 @@ namespace GraphicRequestSystem.API.Controllers
                     r.Title,
                     r.Status,
                     r.Priority,
-                    RequesterName = r.Requester.UserName,
+                    // ارسال نام کامل درخواست‌دهنده
+                    RequesterName = (r.Requester.FirstName + " " + r.Requester.LastName).Trim() != ""
+                        ? r.Requester.FirstName + " " + r.Requester.LastName
+                        : r.Requester.UserName,
+                    RequesterUsername = r.Requester.UserName,
                     r.DueDate
                 })
                 .ToListAsync();
@@ -461,10 +466,20 @@ namespace GraphicRequestSystem.API.Controllers
                 var previousStatus = request.Status;
                 Core.Enums.RequestStatus newStatus;
 
+                var historyLog = new RequestHistory
+                {
+                    RequestId = id,
+                    ActionDate = DateTime.UtcNow,
+                    ActorId = approvalDto.ActorId,
+                    PreviousStatus = previousStatus,
+                    Comment = approvalDto.Comment
+                };
+
                 if (approvalDto.IsApproved)
                 {
                     newStatus = Core.Enums.RequestStatus.Completed;
                     request.CompletionDate = DateTime.UtcNow; // Set completion date on final approval
+                    historyLog.NewStatus = newStatus;
                 }
                 else
                 {
@@ -472,19 +487,8 @@ namespace GraphicRequestSystem.API.Controllers
                     //    return BadRequest("A comment is required when rejecting a design.");
 
                     newStatus = Core.Enums.RequestStatus.PendingRedesign;
+                    historyLog.NewStatus = newStatus;
 
-                    request.Status = newStatus;
-
-                    // Create a history log entry
-                    var historyLog = new RequestHistory
-                    {
-                        RequestId = id,
-                        ActionDate = DateTime.UtcNow,
-                        ActorId = approvalDto.ActorId,
-                        PreviousStatus = previousStatus,
-                        NewStatus = newStatus,
-                        Comment = approvalDto.Comment
-                    };
                     await _context.RequestHistories.AddAsync(historyLog);
                     await _context.SaveChangesAsync();
 
@@ -519,7 +523,12 @@ namespace GraphicRequestSystem.API.Controllers
                     }
                 }
 
-                // Update request status
+                request.Status = newStatus;
+                if (approvalDto.IsApproved) // اگر تایید شده بود، تاریخچه را اینجا ثبت می‌کنیم
+                {
+                    await _context.RequestHistories.AddAsync(historyLog);
+                }
+
                 await _context.SaveChangesAsync();
                 await transaction.CommitAsync();
                 return Ok(request);
@@ -602,14 +611,17 @@ namespace GraphicRequestSystem.API.Controllers
                 .ToListAsync();
 
             var histories = await _context.RequestHistories
+                .Include(h => h.Actor) // واکشی اطلاعات کاربری که اقدام را انجام داده
                .Where(h => h.RequestId == id)
-               .OrderByDescending(h => h.ActionDate) // مرتب‌سازی از جدید به قدیم
+               .OrderByDescending(h => h.ActionDate)
                .Select(h => new
                {
                    h.Id,
                    h.Comment,
                    h.ActionDate,
-                   ActorName = h.Actor.UserName, // ارسال نام کاربر به جای شناسه
+                   ActorName = (h.Actor.FirstName + " " + h.Actor.LastName).Trim() != ""
+                    ? h.Actor.FirstName + " " + h.Actor.LastName
+                    : h.Actor.UserName,
                    h.PreviousStatus,
                    h.NewStatus
                })
@@ -669,9 +681,18 @@ namespace GraphicRequestSystem.API.Controllers
                 request.Priority,
 
                 // --- بخش اصلاح شده ---
-                RequesterName = request.Requester.UserName,
-                DesignerName = request.Designer?.UserName,
-                ApproverName = request.Approver?.UserName,
+                RequesterName = (request.Requester.FirstName + " " + request.Requester.LastName).Trim() != ""
+                    ? request.Requester.FirstName + " " + request.Requester.LastName
+                    : request.Requester.UserName,
+                RequesterUsername = request.Requester.UserName,
+                DesignerName = request.Designer != null
+                    ? ((request.Designer.FirstName + " " + request.Designer.LastName).Trim() != "" ? request.Designer.FirstName + " " + request.Designer.LastName : request.Designer.UserName)
+                    : null,
+                DesignerUsername = request.Designer?.UserName,
+                ApproverName = request.Approver != null
+                    ? ((request.Approver.FirstName + " " + request.Approver.LastName).Trim() != "" ? request.Approver.FirstName + " " + request.Approver.LastName : request.Approver.UserName)
+                    : null,
+                ApproverUsername = request.Approver?.UserName,
 
                 // ID ها را هم اضافه می‌کنیم
                 request.RequesterId,

@@ -31,7 +31,7 @@ const RequestTimeline = ({ histories }: { histories: any[] }) => {
                             <Typography variant="h6" component="span">
                                 {mapStatusToPersian(history.newStatus)}
                             </Typography>
-                            <Typography variant="caption" display="block">توسط: {history.actorId}</Typography>
+                            <Typography variant="caption" display="block">توسط: {history.actorName}</Typography>
                             {history.comment && (
                                 <Typography variant="body2" sx={{ mt: 1, p: 1, bgcolor: 'grey.100', borderRadius: 1 }}>
                                     <strong>یادداشت:</strong> {history.comment}

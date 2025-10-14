@@ -45,7 +45,14 @@ namespace GraphicRequestSystem.API.Controllers
             var designers = await _userManager.GetUsersInRoleAsync("Designer");
             var result = designers
                 .Where(d => d.IsActive)
-                .Select(d => new { d.Id, d.UserName })
+                .Select(d => new { 
+                    d.Id, 
+                    d.UserName, 
+                    d.FirstName, 
+                    d.LastName,
+                    DesignerFullName = (d.FirstName + " " + d.LastName).Trim(),
+                    FullName = (d.FirstName + " " + d.LastName).Trim() != "" ? d.FirstName + " " + d.LastName : d.UserName
+                })
                 .ToList();
             return Ok(result);
         }
@@ -57,7 +64,13 @@ namespace GraphicRequestSystem.API.Controllers
             var approvers = await _userManager.GetUsersInRoleAsync("Approver");
             var result = approvers
                 .Where(d => d.IsActive)
-                .Select(d => new { d.Id, d.UserName })
+                .Select(d => new {
+                    d.Id, 
+                    d.UserName, 
+                    d.FirstName, 
+                    d.LastName,
+                    ApproverFullName = (d.FirstName + " " + d.LastName).Trim(),
+                })
                 .ToList();
             return Ok(result);
         }

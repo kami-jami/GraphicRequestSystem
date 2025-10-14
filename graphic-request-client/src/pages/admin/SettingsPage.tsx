@@ -61,7 +61,7 @@ const SettingsPage = () => {
                                 >
                                     {designers?.map((designer) => (
                                         <MenuItem key={designer.id} value={designer.id}>
-                                            {designer.userName}
+                                            {designer.FullName}
                                         </MenuItem>
                                     ))}
                                 </Select>
