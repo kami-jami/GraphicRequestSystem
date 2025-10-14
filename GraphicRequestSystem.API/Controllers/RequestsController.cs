@@ -35,10 +35,35 @@ namespace GraphicRequestSystem.API.Controllers
         [HttpGet]
         public async Task<IActionResult> GetRequests([FromQuery] int[]? statuses, [FromQuery] string? searchTerm)
         {
-            var query = _context.Requests
-                .Include(r => r.Requester)
-                .AsQueryable();
+            var userId = User.FindFirstValue("id");
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized();
+            }
+            var currentUser = await _userManager.FindByIdAsync(userId);
+            var userRoles = await _userManager.GetRolesAsync(currentUser);
 
+            // --- 2. ایجاد کوئری پایه ---
+            var query = _context.Requests.AsQueryable();
+
+            // --- 3. اعمال فیلتر امنیتی بر اساس نقش کاربر ---
+            // اگر کاربر "Admin" نباشد، داده‌ها را بر اساس نقش‌هایش فیلتر می‌کنیم.
+            if (!userRoles.Contains("Admin"))
+            {
+                query = query.Where(r =>
+                    // یک درخواست‌دهنده فقط درخواست‌های خودش را می‌بیند
+                    (userRoles.Contains("Requester") && r.RequesterId == userId) ||
+
+                    // یک طراح فقط درخواست‌های تخصیص داده شده به خودش را می‌بیند
+                    (userRoles.Contains("Designer") && r.DesignerId == userId) ||
+
+                    // یک تاییدکننده فقط درخواست‌هایی را می‌بیند که منتظر تایید او هستند
+                    (userRoles.Contains("Approver") && r.ApproverId == userId && r.Status == Core.Enums.RequestStatus.PendingApproval)
+                );
+            }
+
+            // --- 4. اعمال فیلترهای ورودی (وضعیت و جستجو) ---
+            // این فیلترها بعد از فیلتر امنیتی اعمال می‌شوند.
             if (statuses != null && statuses.Length > 0)
             {
                 query = query.Where(r => statuses.Contains((int)r.Status));
@@ -49,10 +74,7 @@ namespace GraphicRequestSystem.API.Controllers
                 query = query.Where(r => r.Title.Contains(searchTerm));
             }
 
-            var userId = User.FindFirstValue("id");
-            var currentUser = await _userManager.FindByIdAsync(userId);
-            var userRoles = await _userManager.GetRolesAsync(currentUser);
-
+            // --- 5. اعمال مرتب‌سازی ---
             if (userRoles.Contains("Designer"))
             {
                 // برای طراح: بر اساس نزدیک‌ترین تاریخ تحویل
@@ -64,13 +86,14 @@ namespace GraphicRequestSystem.API.Controllers
                 query = query.OrderByDescending(r => r.SubmissionDate);
             }
 
+            // --- 6. انتخاب فیلدهای نهایی و اجرای کوئری ---
             var requests = await query
+                .Include(r => r.Requester) // Include برای دسترسی به نام درخواست‌دهنده لازم است
                 .Select(r => new {
                     r.Id,
                     r.Title,
                     r.Status,
                     r.Priority,
-                    // ارسال نام کامل درخواست‌دهنده
                     RequesterName = (r.Requester.FirstName + " " + r.Requester.LastName).Trim() != ""
                         ? r.Requester.FirstName + " " + r.Requester.LastName
                         : r.Requester.UserName,

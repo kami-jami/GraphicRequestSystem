@@ -11,6 +11,7 @@ import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import { useLocation } from 'react-router-dom';
+import { apiSlice } from '../services/apiSlice';
 
 
 const drawerWidth = 240;
@@ -28,6 +29,7 @@ const MainLayout = () => {
 
     const handleLogout = () => {
         dispatch(logOut());
+        dispatch(apiSlice.util.resetApiState());
         navigate('/login');
     };
 
