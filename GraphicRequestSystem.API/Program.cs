@@ -11,6 +11,8 @@ using Microsoft.OpenApi.Models;
 using System.Text;
 using GraphicRequestSystem.API.Core.Interfaces;
 using GraphicRequestSystem.API.Infrastructure.Strategies;
+using GraphicRequestSystem.API.Hubs;
+using GraphicRequestSystem.API.Infrastructure.Services;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -31,6 +33,7 @@ builder.Services.AddScoped<IRequestDetailStrategy, EnvironmentalAdStrategy>();
 builder.Services.AddScoped<IRequestDetailStrategy, MiscellaneousStrategy>();
 builder.Services.AddScoped<IRequestDetailStrategy, DefaultRequestStrategy>();
 builder.Services.AddScoped<RequestDetailStrategyFactory>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
 
 builder.Services.AddHangfire(configuration => configuration
     .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
@@ -67,7 +70,8 @@ builder.Services.AddCors(options =>
         {
             policy.WithOrigins("http://localhost:5173")
                 .AllowAnyHeader()
-                .AllowAnyMethod();
+                .AllowAnyMethod()
+                .AllowCredentials(); // Required for SignalR
         });
 });
 
@@ -90,11 +94,28 @@ builder.Services.AddAuthentication(options =>
         ValidAudience = builder.Configuration["Jwt:Audience"],
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]))
     };
+
+    // Configure JWT authentication for SignalR
+    options.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            var accessToken = context.Request.Query["access_token"];
+            var path = context.HttpContext.Request.Path;
+            if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs/notifications"))
+            {
+                context.Token = accessToken;
+            }
+            return Task.CompletedTask;
+        }
+    };
 });
 builder.Services.AddAuthorization();
 
 
 builder.Services.AddHangfireServer();
+
+builder.Services.AddSignalR();
 
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
@@ -157,6 +178,8 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+
+app.MapHub<NotificationHub>("/hubs/notifications");
 
 app.UseHangfireDashboard();
 RecurringJob.AddOrUpdate<DeadlineCheckerJob>(

@@ -28,6 +28,7 @@ namespace GraphicRequestSystem.API.Infrastructure.Data
         public DbSet<VisualAdDetail> VisualAdDetails { get; set; }
         public DbSet<EnvironmentalAdDetail> EnvironmentalAdDetails { get; set; }
         public DbSet<MiscellaneousDetail> MiscellaneousDetails { get; set; }
+        public DbSet<Notification> Notifications { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -55,6 +56,18 @@ namespace GraphicRequestSystem.API.Infrastructure.Data
                 .HasOne(h => h.Actor)
                 .WithMany()
                 .HasForeignKey(h => h.ActorId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<Notification>()
+                .HasOne(n => n.User)
+                .WithMany()
+                .HasForeignKey(n => n.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<Notification>()
+                .HasOne(n => n.Request)
+                .WithMany()
+                .HasForeignKey(n => n.RequestId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             // Update Seeding Logic with new names

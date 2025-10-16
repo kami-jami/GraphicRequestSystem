@@ -36,7 +36,7 @@ const baseQueryWithReauth: typeof baseQuery = async (args, api, extraOptions) =>
 export const apiSlice = createApi({
   reducerPath: 'api',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['Comments', 'Request', 'Users', 'Settings', 'Lookups'],
+  tagTypes: ['Comments', 'Request', 'Users', 'Settings', 'Lookups', 'Notifications'],
   endpoints: (builder) => ({
     login: builder.mutation({
       query: (credentials) => ({
@@ -218,6 +218,30 @@ export const apiSlice = createApi({
         }),
         invalidatesTags: ['Users'],
     }),
+
+    // Notification endpoints
+    getNotifications: builder.query<any[], void>({
+        query: () => '/notifications',
+        providesTags: ['Notifications'],
+    }),
+    getUnreadCount: builder.query<{ count: number }, void>({
+        query: () => '/notifications/unread-count',
+        providesTags: ['Notifications'],
+    }),
+    markAsRead: builder.mutation<void, number>({
+        query: (notificationId) => ({
+            url: `/notifications/${notificationId}/read`,
+            method: 'PUT',
+        }),
+        invalidatesTags: ['Notifications'],
+    }),
+    markAllAsRead: builder.mutation<void, void>({
+        query: () => ({
+            url: '/notifications/read-all',
+            method: 'PUT',
+        }),
+        invalidatesTags: ['Notifications'],
+    }),
   }),
 });
 
@@ -255,4 +279,8 @@ export const {
     useToggleUserStatusMutation,
     useUpdateUserMutation,
     useStartDesignMutation,
+    useGetNotificationsQuery,
+    useGetUnreadCountQuery,
+    useMarkAsReadMutation,
+    useMarkAllAsReadMutation,
 } = apiSlice;

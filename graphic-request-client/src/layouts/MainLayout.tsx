@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { AppBar, Box, CssBaseline, Drawer, List, ListItem, ListItemButton, ListItemIcon, ListItemText, Toolbar, Typography, Divider, Collapse } from '@mui/material';
+import { useState, useCallback, useEffect } from 'react';
+import { AppBar, Box, CssBaseline, Drawer, List, ListItemButton, ListItemIcon, ListItemText, Toolbar, Typography, Divider, Collapse } from '@mui/material';
 import { Outlet, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { selectCurrentUser, logOut } from '../pages/auth/authSlice';
@@ -11,7 +11,25 @@ import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import { useLocation } from 'react-router-dom';
-import { apiSlice } from '../services/apiSlice';
+import { apiSlice, useGetNotificationsQuery, useGetUnreadCountQuery } from '../services/apiSlice';
+import { useSignalR } from '../services/useSignalR';
+import {
+    setSignalRNotifications,
+    addSignalRNotification,
+    markSignalRNotificationAsRead,
+    markAllSignalRNotificationsAsRead,
+    setSignalRUnreadCount,
+} from '../services/signalRNotificationSlice';
+import NotificationBell from '../components/NotificationBell';
+
+interface SignalRNotification {
+    id: number;
+    requestId: number;
+    message: string;
+    type: string;
+    isRead: boolean;
+    createdAt: string;
+}
 
 
 const drawerWidth = 240;
@@ -23,6 +41,39 @@ const MainLayout = () => {
     const dispatch = useDispatch();
     const [openWorklist, setOpenWorklist] = useState(true);
     const [openAdminMenu, setOpenAdminMenu] = useState(true);
+
+    // Fetch notifications on mount
+    const { data: notifications } = useGetNotificationsQuery();
+    const { data: unreadCountData } = useGetUnreadCountQuery();
+
+    // Update Redux state when notifications are fetched
+    useEffect(() => {
+        if (notifications) {
+            dispatch(setSignalRNotifications(notifications));
+        }
+    }, [notifications, dispatch]);
+
+    useEffect(() => {
+        if (unreadCountData) {
+            dispatch(setSignalRUnreadCount(unreadCountData.count));
+        }
+    }, [unreadCountData, dispatch]);
+
+    // SignalR callbacks
+    const handleNotificationReceived = useCallback((notification: SignalRNotification) => {
+        dispatch(addSignalRNotification(notification));
+    }, [dispatch]);
+
+    const handleNotificationRead = useCallback((notificationId: number) => {
+        dispatch(markSignalRNotificationAsRead(notificationId));
+    }, [dispatch]);
+
+    const handleAllNotificationsRead = useCallback(() => {
+        dispatch(markAllSignalRNotificationsAsRead());
+    }, [dispatch]);
+
+    // Initialize SignalR connection
+    useSignalR(handleNotificationReceived, handleNotificationRead, handleAllNotificationsRead);
 
     const userDisplayName = (user?.firstName || user?.lastName) ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : user?.username;
 
@@ -57,7 +108,10 @@ const MainLayout = () => {
             <AppBar position="fixed" sx={{ width: `calc(100% - ${drawerWidth}px)`, ml: `${drawerWidth}px` }}>
                 <Toolbar sx={{ display: 'flex', justifyContent: 'space-between' }}>
                     <Typography variant="h6" noWrap>سامانه مدیریت درخواست‌ها</Typography>
-                    <Typography>خوش آمدید، {userDisplayName}</Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        <NotificationBell />
+                        <Typography sx={{ ml: 2 }}>خوش آمدید، {userDisplayName}</Typography>
+                    </Box>
                 </Toolbar>
             </AppBar>
             <Drawer variant="permanent" anchor="left" sx={{ width: drawerWidth, flexShrink: 0, '& .MuiDrawer-paper': { width: drawerWidth, boxSizing: 'border-box' } }}>

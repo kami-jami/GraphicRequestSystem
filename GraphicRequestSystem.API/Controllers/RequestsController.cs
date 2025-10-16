@@ -12,6 +12,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 using System.Security.Claims;
 using System.Security.Claims;
 using GraphicRequestSystem.API.Helpers;
+using GraphicRequestSystem.API.Core.Interfaces;
 
 namespace GraphicRequestSystem.API.Controllers
 {
@@ -23,12 +24,18 @@ namespace GraphicRequestSystem.API.Controllers
         private readonly AppDbContext _context;
         private readonly RequestDetailStrategyFactory _strategyFactory;
         private readonly UserManager<AppUser> _userManager;
+        private readonly INotificationService _notificationService;
 
-        public RequestsController(AppDbContext context, RequestDetailStrategyFactory strategyFactory, UserManager<AppUser> userManager)
+        public RequestsController(
+            AppDbContext context,
+            RequestDetailStrategyFactory strategyFactory,
+            UserManager<AppUser> userManager,
+            INotificationService notificationService)
         {
             _context = context;
             _strategyFactory = strategyFactory;
             _userManager = userManager;
+            _notificationService = notificationService;
         }
 
         // GET: api/Requests
@@ -89,7 +96,8 @@ namespace GraphicRequestSystem.API.Controllers
             // --- 6. انتخاب فیلدهای نهایی و اجرای کوئری ---
             var requests = await query
                 .Include(r => r.Requester) // Include برای دسترسی به نام درخواست‌دهنده لازم است
-                .Select(r => new {
+                .Select(r => new
+                {
                     r.Id,
                     r.Title,
                     r.Status,
@@ -183,7 +191,7 @@ namespace GraphicRequestSystem.API.Controllers
                 await _context.Requests.AddAsync(newRequest);
                 await _context.SaveChangesAsync();
 
-                var historyMessage = HistoryMessageHelper.GetSystemMessageForStatusChange(RequestStatus.DesignerReview); 
+                var historyMessage = HistoryMessageHelper.GetSystemMessageForStatusChange(RequestStatus.DesignerReview);
                 var historyLog = new RequestHistory
                 {
                     RequestId = newRequest.Id,
@@ -230,7 +238,7 @@ namespace GraphicRequestSystem.API.Controllers
                         };
                         await _context.Attachments.AddAsync(attachment);
                     }
-                     
+
                 }
 
 
@@ -243,6 +251,17 @@ namespace GraphicRequestSystem.API.Controllers
 
                 // If everything is successful, commit the transaction
                 await transaction.CommitAsync();
+
+                // Send notification to the default designer
+                if (!string.IsNullOrEmpty(defaultDesignerId))
+                {
+                    await _notificationService.CreateNotificationAsync(
+                        defaultDesignerId,
+                        newRequest.Id,
+                        $"درخواست جدیدی ثبت شد: {newRequest.Title}",
+                        "NewRequest"
+                    );
+                }
 
                 return Ok(newRequest);
             }
@@ -278,6 +297,14 @@ namespace GraphicRequestSystem.API.Controllers
 
             // 4. Save the changes
             await _context.SaveChangesAsync();
+
+            // 5. Send notification to the designer
+            await _notificationService.CreateNotificationAsync(
+                assignDto.DesignerId,
+                id,
+                $"یک درخواست جدید به شما تخصیص داده شد: {request.Title}",
+                "Assignment"
+            );
 
             return Ok(request);
         }
@@ -356,11 +383,22 @@ namespace GraphicRequestSystem.API.Controllers
                     }
                 }
 
-                
+
 
                 // 3. Save all changes
                 await _context.SaveChangesAsync();
                 await transaction.CommitAsync();
+
+                // 4. Send notification to the requester
+                if (!string.IsNullOrEmpty(request.RequesterId))
+                {
+                    await _notificationService.CreateNotificationAsync(
+                        request.RequesterId,
+                        id,
+                        $"درخواست شما نیاز به اصلاح دارد: {request.Title}",
+                        "ReturnForCorrection"
+                    );
+                }
 
                 return Ok(request);
             }
@@ -464,6 +502,27 @@ namespace GraphicRequestSystem.API.Controllers
 
                 await _context.SaveChangesAsync();
                 await transaction.CommitAsync();
+
+                // Send notification based on status
+                if (newStatus == Core.Enums.RequestStatus.PendingApproval && !string.IsNullOrEmpty(request.ApproverId))
+                {
+                    await _notificationService.CreateNotificationAsync(
+                        request.ApproverId,
+                        id,
+                        $"درخواست جدیدی منتظر تایید شماست: {request.Title}",
+                        "PendingApproval"
+                    );
+                }
+                else if (newStatus == Core.Enums.RequestStatus.Completed && !string.IsNullOrEmpty(request.RequesterId))
+                {
+                    await _notificationService.CreateNotificationAsync(
+                        request.RequesterId,
+                        id,
+                        $"درخواست شما تکمیل شد: {request.Title}",
+                        "Completed"
+                    );
+                }
+
                 return Ok(request);
             }
             catch (Exception)
@@ -522,7 +581,7 @@ namespace GraphicRequestSystem.API.Controllers
                     ActionDate = DateTime.UtcNow,
                     ActorId = approvalDto.ActorId,
                     PreviousStatus = previousStatus,
-                    NewStatus = newStatus, 
+                    NewStatus = newStatus,
                     Comment = finalComment
                 };
                 await _context.RequestHistories.AddAsync(historyLog);
@@ -558,6 +617,47 @@ namespace GraphicRequestSystem.API.Controllers
 
                 await _context.SaveChangesAsync();
                 await transaction.CommitAsync();
+
+                // Send notification based on approval decision
+                if (approvalDto.IsApproved)
+                {
+                    // Always notify the requester
+                    if (!string.IsNullOrEmpty(request.RequesterId))
+                    {
+                        await _notificationService.CreateNotificationAsync(
+                            request.RequesterId,
+                            id,
+                            $"درخواست شما تایید و تکمیل شد: {request.Title}",
+                            "Approved"
+                        );
+                    }
+
+                    // Also notify the designer if approver is someone else
+                    if (!string.IsNullOrEmpty(request.DesignerId) &&
+                        request.DesignerId != approvalDto.ActorId)
+                    {
+                        await _notificationService.CreateNotificationAsync(
+                            request.DesignerId,
+                            id,
+                            $"درخواست تایید شد: {request.Title}",
+                            "Approved"
+                        );
+                    }
+                }
+                else if (!approvalDto.IsApproved)
+                {
+                    // Notify designer for redesign
+                    if (!string.IsNullOrEmpty(request.DesignerId))
+                    {
+                        await _notificationService.CreateNotificationAsync(
+                            request.DesignerId,
+                            id,
+                            $"درخواست نیاز به طراحی مجدد دارد: {request.Title}",
+                            "Redesign"
+                        );
+                    }
+                }
+
                 return Ok(request);
             }
             catch (Exception)
@@ -612,6 +712,37 @@ namespace GraphicRequestSystem.API.Controllers
             await _context.Comments.AddAsync(comment);
             await _context.SaveChangesAsync();
 
+            // Get the request to determine who should receive the notification
+            var request = await _context.Requests
+                .Include(r => r.Requester)
+                .FirstOrDefaultAsync(r => r.Id == id);
+
+            if (request != null)
+            {
+                // Notify all relevant parties except the comment author
+                var notifyUserIds = new List<string>();
+
+                if (!string.IsNullOrEmpty(request.RequesterId) && request.RequesterId != authorId)
+                    notifyUserIds.Add(request.RequesterId);
+
+                if (!string.IsNullOrEmpty(request.DesignerId) && request.DesignerId != authorId)
+                    notifyUserIds.Add(request.DesignerId);
+
+                if (!string.IsNullOrEmpty(request.ApproverId) && request.ApproverId != authorId)
+                    notifyUserIds.Add(request.ApproverId);
+
+                // Send notifications to all relevant parties
+                foreach (var userId in notifyUserIds.Distinct())
+                {
+                    await _notificationService.CreateNotificationAsync(
+                        userId,
+                        id,
+                        $"نظر جدیدی به درخواست اضافه شد: {request.Title}",
+                        "Comment"
+                    );
+                }
+            }
+
             return Ok(comment);
         }
 
@@ -655,7 +786,8 @@ namespace GraphicRequestSystem.API.Controllers
                .ToListAsync();
 
             // اتصال فایل‌ها به تاریخچه مربوطه
-            var historiesWithAttachments = histories.Select(h => new {
+            var historiesWithAttachments = histories.Select(h => new
+            {
                 h.Id,
                 h.Comment,
                 h.ActionDate,
@@ -772,6 +904,17 @@ namespace GraphicRequestSystem.API.Controllers
             await _context.RequestHistories.AddAsync(historyLog);
             await _context.SaveChangesAsync();
 
+            // Send notification to the designer
+            if (!string.IsNullOrEmpty(request.DesignerId))
+            {
+                await _notificationService.CreateNotificationAsync(
+                    request.DesignerId,
+                    id,
+                    $"درخواست پس از اصلاح توسط درخواست‌دهنده ارسال شد: {request.Title}",
+                    "Resubmit"
+                );
+            }
+
             return Ok(request);
         }
 
@@ -806,6 +949,17 @@ namespace GraphicRequestSystem.API.Controllers
             };
             await _context.RequestHistories.AddAsync(historyLog);
             await _context.SaveChangesAsync();
+
+            // Send notification to the approver
+            if (!string.IsNullOrEmpty(request.ApproverId))
+            {
+                await _notificationService.CreateNotificationAsync(
+                    request.ApproverId,
+                    id,
+                    $"درخواست پس از طراحی مجدد، منتظر تایید شماست: {request.Title}",
+                    "ResubmitForApproval"
+                );
+            }
 
             return Ok(request);
         }
