@@ -1,9 +1,9 @@
-import { useParams } from 'react-router-dom';
+import { useParams, useLocation } from 'react-router-dom';
 import { useGetRequestByIdQuery, useGetRequestCommentsQuery, useAddCommentMutation } from '../services/apiSlice';
 import { Box, CircularProgress, Paper, Typography, Grid, TextField, Button, Alert, AlertTitle } from '@mui/material';
 import { mapStatusToPersian, mapPriorityToPersian } from '../utils/mappers';
 import moment from 'moment-jalaali';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import RequestActions from './RequestActions';
 import AttachmentList from '../components/request-details/AttachmentList';
 import LabelDetails from '../components/request-details/LabelDetails';
@@ -22,17 +22,26 @@ import { useSelector } from 'react-redux';
 
 const RequestDetailPage = () => {
     const { id } = useParams<{ id: string }>();
+    const location = useLocation();
     const requestId = Number(id);
     const user = useSelector(selectCurrentUser);
 
-    const { data: request, isLoading: isLoadingRequest, isError } = useGetRequestByIdQuery(requestId, {
+    const { data: request, isLoading: isLoadingRequest, isError, refetch } = useGetRequestByIdQuery(requestId, {
         skip: !requestId,
         refetchOnMountOrArgChange: true,
     });
 
     const [newComment, setNewComment] = useState('');
-    const { data: comments, isLoading: isLoadingComments } = useGetRequestCommentsQuery(requestId, { skip: !requestId, refetchOnMountOrArgChange: true, refetchOnFocus: true });
+    const { data: comments, isLoading: isLoadingComments, refetch: refetchComments } = useGetRequestCommentsQuery(requestId, { skip: !requestId, refetchOnMountOrArgChange: true, refetchOnFocus: true });
     const [addComment, { isLoading: isAddingComment }] = useAddCommentMutation();
+
+    // Listen for refresh signal from notification click
+    useEffect(() => {
+        if (location.state && (location.state as any).refresh) {
+            refetch();
+            refetchComments();
+        }
+    }, [location.state, refetch, refetchComments]);
 
     const handleAddComment = async () => {
         if (!newComment.trim()) return;

@@ -168,9 +168,12 @@ const RequestActions = ({ request }: { request: any }) => {
                         <Button variant="contained" color="secondary" onClick={openApprovalModal} disabled={isCompleting}>
                             ارسال برای تایید
                         </Button>
-                        <Button variant="contained" color="success" onClick={() => setCompleteConfirmOpen(true)} disabled={isCompleting}>
-                            اتمام کار (بدون تایید)
-                        </Button>
+                        {/* دکمه اتمام بدون تایید فقط برای طراحانی که نقش Approver دارند */}
+                        {user.roles?.includes('Approver') && (
+                            <Button variant="contained" color="success" onClick={() => setCompleteConfirmOpen(true)} disabled={isCompleting}>
+                                اتمام کار (بدون تایید)
+                            </Button>
+                        )}
                         <Button variant="outlined" color="warning" onClick={() => setReturnModalOpen(true)}>
                             بازگشت جهت اصلاح
                         </Button>

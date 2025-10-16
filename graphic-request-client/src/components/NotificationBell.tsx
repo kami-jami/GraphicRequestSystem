@@ -1,4 +1,4 @@
-import { useState, MouseEvent } from 'react';
+import { useState, type MouseEvent } from 'react';
 import {
     IconButton,
     Badge,
@@ -42,12 +42,9 @@ const NotificationBell = () => {
 
         const targetPath = `/requests/${requestId}`;
 
-        // If already on the target page, force reload by navigating away and back
+        // If already on the target page, pass a refresh signal via state
         if (location.pathname === targetPath) {
-            navigate('/');
-            setTimeout(() => {
-                navigate(targetPath);
-            }, 0);
+            navigate(targetPath, { state: { refresh: Date.now() }, replace: true });
         } else {
             navigate(targetPath);
         }
