@@ -36,7 +36,7 @@ const baseQueryWithReauth: typeof baseQuery = async (args, api, extraOptions) =>
 export const apiSlice = createApi({
   reducerPath: 'api',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['Comments', 'Request', 'Users', 'Settings', 'Lookups', 'Notifications'],
+  tagTypes: ['Comments', 'Request', 'Users', 'Settings', 'Lookups', 'Notifications', 'InboxCounts'],
   endpoints: (builder) => ({
     login: builder.mutation({
       query: (credentials) => ({
@@ -59,7 +59,7 @@ export const apiSlice = createApi({
         method: 'POST',
         body: requestData,
       }),
-      invalidatesTags: ['Request'],
+      invalidatesTags: ['Request', 'InboxCounts'],
     }),
     // ... تمام endpoint های دیگر شما ...
     getDashboardStats: builder.query<any, void>({ query: () => '/admin/dashboard' }),
@@ -79,7 +79,7 @@ export const apiSlice = createApi({
     getRequestById: builder.query<any, number>({ query: (id) => `/requests/${id}`, providesTags: (result, error, id) => [{ type: 'Request', id }] }),
     getInboxCounts: builder.query<Record<string, number>, void>({ 
       query: () => '/requests/inbox-counts',
-      providesTags: ['Request']
+      providesTags: ['InboxCounts']
     }),
     markInboxAsViewed: builder.mutation<void, string>({
       query: (inboxCategory) => ({
@@ -88,24 +88,24 @@ export const apiSlice = createApi({
         body: JSON.stringify(inboxCategory),
         headers: { 'Content-Type': 'application/json' }
       }),
-      invalidatesTags: ['Request']
+      invalidatesTags: ['InboxCounts']
     }),
     getLookupLists: builder.query<string[], void>({ query: () => '/lookup' }),
     getRequestComments: builder.query<any[], number>({ query: (id) => `/requests/${id}/comments`, providesTags: ['Comments'] }),
     addComment: builder.mutation<any, { requestId: number; content: string }>({ 
         query: ({ requestId, content }) => ({ url: `/requests/${requestId}/comments`, method: 'POST', body: { content } }), 
-        invalidatesTags: ['Comments', 'Request'] 
+        invalidatesTags: ['Comments', 'Request', 'InboxCounts'] 
     }),
     assignRequest: builder.mutation<any, { requestId: number; designerId: string }>({ 
         query: ({ requestId, designerId }) => ({ url: `/requests/${requestId}/assign`, method: 'PATCH', body: { designerId } }), 
-        invalidatesTags: (result, error, arg) => [{ type: 'Request', id: arg.requestId }, 'Request'] 
+        invalidatesTags: (result, error, arg) => [{ type: 'Request', id: arg.requestId }, 'Request', 'InboxCounts'] 
     }),
     startDesign: builder.mutation<any, { requestId: number }>({
         query: ({ requestId }) => ({
             url: `/requests/${requestId}/start-design`,
             method: 'PATCH',
         }),
-        invalidatesTags: (result, error, arg) => [{ type: 'Request', id: arg.requestId }, 'Request'],
+        invalidatesTags: (result, error, arg) => [{ type: 'Request', id: arg.requestId }, 'Request', 'InboxCounts'],
     }),
     returnRequest: builder.mutation<any, FormData>({
         query: (formData) => ({
@@ -115,7 +115,8 @@ export const apiSlice = createApi({
         }),
         invalidatesTags: (result, error, arg) => [
             { type: 'Request', id: Number(arg.get('requestId')) },
-            'Request' // Invalidate general tag to refresh inbox counts
+            'Request', // Invalidate general tag to refresh inbox counts
+            'InboxCounts'
         ],
     }),
     completeDesign: builder.mutation<any, FormData>({
@@ -127,7 +128,7 @@ export const apiSlice = createApi({
               body: formData,
           };
       },
-      invalidatesTags: (result, error, arg) => [{ type: 'Request', id: Number(arg.get('requestId')) }, 'Request'],
+      invalidatesTags: (result, error, arg) => [{ type: 'Request', id: Number(arg.get('requestId')) }, 'Request', 'InboxCounts'],
     }),
     processApproval: builder.mutation<any, FormData>({
         query: (formData) => ({
@@ -135,15 +136,15 @@ export const apiSlice = createApi({
             method: 'PATCH',
             body: formData,
         }),
-        invalidatesTags: (result, error, arg) => [{ type: 'Request', id: Number(arg.get('requestId')) }, 'Request'],
+        invalidatesTags: (result, error, arg) => [{ type: 'Request', id: Number(arg.get('requestId')) }, 'Request', 'InboxCounts'],
     }),
     resubmitRequest: builder.mutation<any, { requestId: number }>({ 
         query: ({ requestId }) => ({ url: `/requests/${requestId}/resubmit`, method: 'PATCH', }), 
-        invalidatesTags: (result, error, arg) => [{ type: 'Request', id: arg.requestId }, 'Request'] 
+        invalidatesTags: (result, error, arg) => [{ type: 'Request', id: arg.requestId }, 'Request', 'InboxCounts'] 
     }),
     resubmitForApproval: builder.mutation<any, { requestId: number }>({ 
         query: ({ requestId }) => ({ url: `/requests/${requestId}/resubmit-for-approval`, method: 'PATCH', }), 
-        invalidatesTags: (result, error, arg) => [{ type: 'Request', id: arg.requestId }, 'Request'] 
+        invalidatesTags: (result, error, arg) => [{ type: 'Request', id: arg.requestId }, 'Request', 'InboxCounts'] 
     }),
     getAvailability: builder.query<any[], { startDate: string; endDate: string }>({ query: ({ startDate, endDate }) => `/availability?startDate=${startDate}&endDate=${endDate}` }),
     getUsersWithRoles: builder.query<any[], void>({

@@ -24,9 +24,21 @@ const statusOptions = [
 const getWorklistTitle = (statuses: string[]): string => {
     const statusStr = statuses.sort().join(',');
     switch (statusStr) {
+        // Requester inboxes
+        case '0,1': return '⏳ در حال بررسی';
+        case '2': return '🔴 نیاز به اصلاح';
+        case '6': return '✅ تکمیل شده';
+
+        // Designer inboxes
+        case '1,5': return '🔴 نیاز به اقدام';
+        case '3': return '🎯 در حال انجام';
+        case '4': return '⏰ منتظر تایید';
+
+        // Approver inboxes
+        // case '4': handled above
+
+        // Legacy/Default
         case '3,5': return 'کارتابل: درخواست‌های در حال انجام';
-        case '4': return 'کارتابل: درخواست‌های منتظر تایید';
-        case '2': return 'کارتابل: درخواست‌های نیازمند اصلاح';
         default: return 'لیست تمام درخواست‌ها';
     }
 };
@@ -39,7 +51,7 @@ const RequestsListPage = () => {
 
     // State های داخلی برای مدیریت فیلترها
     const [searchTerm, setSearchTerm] = useState('');
-    const [statusFilter, setStatusFilter] = useState<(number | '')[]>([]);
+    const [statusFilter, setStatusFilter] = useState<number[]>([]);
 
     // --- این useEffect مشکل را حل می‌کند ---
     useEffect(() => {
@@ -59,10 +71,10 @@ const RequestsListPage = () => {
     });
 
     // این تابع برای زمانی است که کاربر فیلتر را به صورت دستی تغییر می‌دهد
-    const handleStatusFilterChange = (value: (number | '')[]) => {
+    const handleStatusFilterChange = (value: number[]) => {
         const newParams = new URLSearchParams(searchParams);
         newParams.delete('statuses'); // پارامترهای قبلی را پاک کن
-        value.filter(s => s !== '').forEach(s => newParams.append('statuses', s.toString())); // پارامترهای جدید را اضافه کن
+        value.forEach(s => newParams.append('statuses', s.toString())); // پارامترهای جدید را اضافه کن
         setSearchParams(newParams);
     };
 

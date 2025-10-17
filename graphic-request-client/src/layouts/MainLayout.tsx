@@ -96,30 +96,86 @@ const MainLayout = () => {
 
         if (userRoles.includes('Requester')) {
             return [
-                { text: '🔴 نیاز به اقدام', statuses: [2], countKey: 'requester_needsAction', color: 'error' },
-                { text: '⏳ در حال بررسی', statuses: [0, 1], countKey: 'requester_underReview' },
-                { text: '🎨 در حال طراحی', statuses: [3, 5], countKey: 'requester_inDesign' },
-                { text: '✅ تکمیل شده', statuses: [6], countKey: 'requester_completed' },
-                { text: '📋 همه درخواست‌های من', statuses: [] },
+                {
+                    text: '⏳ در حال بررسی',
+                    statuses: [0, 1],
+                    countKey: 'requester_underReview',
+                    description: 'درخواست‌هایی که ثبت شده‌اند اما طراح هنوز شروع نکرده'
+                },
+                {
+                    text: '🔴 نیاز به اصلاح',
+                    statuses: [2],
+                    countKey: 'requester_needsRevision',
+                    color: 'error',
+                    description: 'درخواست‌هایی که توسط طراح برگردانده شده‌اند'
+                },
+                {
+                    text: '✅ تکمیل شده',
+                    statuses: [6],
+                    countKey: 'requester_completed',
+                    description: 'درخواست‌های نهایی شده و بسته شده'
+                },
+                {
+                    text: '📋 همه درخواست‌های من',
+                    statuses: []
+                },
             ];
         }
 
         if (userRoles.includes('Designer')) {
             return [
-                { text: '🔥 فوری - نیاز به شروع', statuses: [1], urgent: true, countKey: 'designer_urgentToStart', color: 'error' },
-                { text: '🔴 نزدیک به سررسید', statuses: [3, 5], nearDeadline: true, countKey: 'designer_approachingDeadline', color: 'warning' },
-                { text: '🎯 در حال انجام', statuses: [3, 5], countKey: 'designer_inProgress' },
-                { text: '📬 منتظر شروع', statuses: [1], countKey: 'designer_waitingToStart' },
-                { text: '✅ تکمیل شده', statuses: [6], countKey: 'designer_completed' },
-                { text: '📋 همه کارهای من', statuses: [] },
+                {
+                    text: '� نیاز به اقدام',
+                    statuses: [1, 5],
+                    countKey: 'designer_pendingAction',
+                    color: 'error',
+                    description: 'درخواست‌های جدید، برگشتی از تاییدکننده، و بازارسال شده بعد از اصلاح'
+                },
+                {
+                    text: '🎯 در حال انجام',
+                    statuses: [3],
+                    countKey: 'designer_inProgress',
+                    description: 'درخواست‌هایی که در حال کار بر روی آن‌ها هستید'
+                },
+                {
+                    text: '⏰ منتظر تایید',
+                    statuses: [4],
+                    countKey: 'designer_pendingApproval',
+                    color: 'warning',
+                    description: 'طراحی تکمیل شده اما منتظر تایید'
+                },
+                {
+                    text: '✅ تکمیل شده',
+                    statuses: [6],
+                    countKey: 'designer_completed',
+                    description: 'پروژه‌های نهایی شده و بسته شده'
+                },
+                {
+                    text: '📋 همه کارهای من',
+                    statuses: []
+                },
             ];
         }
 
         if (userRoles.includes('Approver')) {
             return [
-                { text: '🔴 منتظر تایید من', statuses: [4], countKey: 'approver_pendingApproval', color: 'error' },
-                { text: '⏰ فوری - نیاز به تایید', statuses: [4], urgent: true, countKey: 'approver_urgentApproval', color: 'warning' },
-                { text: '📋 سابقه تایید‌های من', statuses: [6] },
+                {
+                    text: '⏰ منتظر تایید',
+                    statuses: [4],
+                    countKey: 'approver_pendingApproval',
+                    color: 'warning',
+                    description: 'درخواست‌هایی که نیاز به تصمیم یا تایید دارند'
+                },
+                {
+                    text: '✅ تکمیل شده',
+                    statuses: [6],
+                    countKey: 'approver_completed',
+                    description: 'درخواست‌های تایید شده یا بسته شده'
+                },
+                {
+                    text: '📋 سابقه تایید‌های من',
+                    statuses: []
+                },
             ];
         }
 

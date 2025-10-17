@@ -152,15 +152,16 @@ namespace GraphicRequestSystem.API.Controllers
             // Requester counts
             if (userRoles.Contains("Requester"))
             {
-                counts["requester_needsAction"] = await GetNewItemsCount("requester_needsAction",
+                // Under Review – Requests submitted but designer hasn't started yet
+                counts["requester_underReview"] = await GetNewItemsCount("requester_underReview",
+                    q => q.Where(r => r.RequesterId == userId &&
+                        (r.Status == RequestStatus.Submitted || r.Status == RequestStatus.DesignerReview)));
+
+                // Needs Revision – Requests returned by the designer
+                counts["requester_needsRevision"] = await GetNewItemsCount("requester_needsRevision",
                     q => q.Where(r => r.RequesterId == userId && r.Status == RequestStatus.PendingCorrection));
 
-                counts["requester_underReview"] = await GetNewItemsCount("requester_underReview",
-                    q => q.Where(r => r.RequesterId == userId && (r.Status == RequestStatus.Submitted || r.Status == RequestStatus.DesignerReview)));
-
-                counts["requester_inDesign"] = await GetNewItemsCount("requester_inDesign",
-                    q => q.Where(r => r.RequesterId == userId && (r.Status == RequestStatus.DesignInProgress || r.Status == RequestStatus.PendingRedesign)));
-
+                // Completed – Requests that have been finalized and closed
                 counts["requester_completed"] = await GetNewItemsCount("requester_completed",
                     q => q.Where(r => r.RequesterId == userId && r.Status == RequestStatus.Completed));
             }
@@ -168,22 +169,20 @@ namespace GraphicRequestSystem.API.Controllers
             // Designer counts
             if (userRoles.Contains("Designer"))
             {
-                var twoDaysFromNow = DateTime.Now.AddDays(2);
-
-                counts["designer_urgentToStart"] = await GetNewItemsCount("designer_urgentToStart",
-                    q => q.Where(r => r.DesignerId == userId && r.Status == RequestStatus.DesignerReview && r.Priority == RequestPriority.Urgent));
-
-                counts["designer_approachingDeadline"] = await GetNewItemsCount("designer_approachingDeadline",
+                // Pending Action – New requests, requests returned by approver, and resubmitted by requester after correction
+                counts["designer_pendingAction"] = await GetNewItemsCount("designer_pendingAction",
                     q => q.Where(r => r.DesignerId == userId &&
-                        (r.Status == RequestStatus.DesignInProgress || r.Status == RequestStatus.PendingRedesign) &&
-                        r.DueDate.HasValue && r.DueDate.Value <= twoDaysFromNow));
+                        (r.Status == RequestStatus.DesignerReview || r.Status == RequestStatus.PendingRedesign)));
 
+                // In Progress – Requests currently being worked on
                 counts["designer_inProgress"] = await GetNewItemsCount("designer_inProgress",
-                    q => q.Where(r => r.DesignerId == userId && (r.Status == RequestStatus.DesignInProgress || r.Status == RequestStatus.PendingRedesign)));
+                    q => q.Where(r => r.DesignerId == userId && r.Status == RequestStatus.DesignInProgress));
 
-                counts["designer_waitingToStart"] = await GetNewItemsCount("designer_waitingToStart",
-                    q => q.Where(r => r.DesignerId == userId && r.Status == RequestStatus.DesignerReview));
+                // Pending Approval – Design completed but awaiting approval
+                counts["designer_pendingApproval"] = await GetNewItemsCount("designer_pendingApproval",
+                    q => q.Where(r => r.DesignerId == userId && r.Status == RequestStatus.PendingApproval));
 
+                // Completed – Projects that have been finalized and closed
                 counts["designer_completed"] = await GetNewItemsCount("designer_completed",
                     q => q.Where(r => r.DesignerId == userId && r.Status == RequestStatus.Completed));
             }
@@ -191,11 +190,13 @@ namespace GraphicRequestSystem.API.Controllers
             // Approver counts
             if (userRoles.Contains("Approver"))
             {
+                // Pending Approval – Requests that require a decision or approval
                 counts["approver_pendingApproval"] = await GetNewItemsCount("approver_pendingApproval",
                     q => q.Where(r => r.ApproverId == userId && r.Status == RequestStatus.PendingApproval));
 
-                counts["approver_urgentApproval"] = await GetNewItemsCount("approver_urgentApproval",
-                    q => q.Where(r => r.ApproverId == userId && r.Status == RequestStatus.PendingApproval && r.Priority == RequestPriority.Urgent));
+                // Completed – Requests that have been approved or closed
+                counts["approver_completed"] = await GetNewItemsCount("approver_completed",
+                    q => q.Where(r => r.ApproverId == userId && r.Status == RequestStatus.Completed));
             }
 
             return Ok(counts);
