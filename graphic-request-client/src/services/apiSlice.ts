@@ -77,16 +77,35 @@ export const apiSlice = createApi({
         providesTags: ['Request'],
     }),
     getRequestById: builder.query<any, number>({ query: (id) => `/requests/${id}`, providesTags: (result, error, id) => [{ type: 'Request', id }] }),
+    getInboxCounts: builder.query<Record<string, number>, void>({ 
+      query: () => '/requests/inbox-counts',
+      providesTags: ['Request']
+    }),
+    markInboxAsViewed: builder.mutation<void, string>({
+      query: (inboxCategory) => ({
+        url: '/requests/mark-inbox-viewed',
+        method: 'POST',
+        body: JSON.stringify(inboxCategory),
+        headers: { 'Content-Type': 'application/json' }
+      }),
+      invalidatesTags: ['Request']
+    }),
     getLookupLists: builder.query<string[], void>({ query: () => '/lookup' }),
     getRequestComments: builder.query<any[], number>({ query: (id) => `/requests/${id}/comments`, providesTags: ['Comments'] }),
-    addComment: builder.mutation<any, { requestId: number; content: string }>({ query: ({ requestId, content }) => ({ url: `/requests/${requestId}/comments`, method: 'POST', body: { content } }), invalidatesTags: ['Comments'] }),
-    assignRequest: builder.mutation<any, { requestId: number; designerId: string }>({ query: ({ requestId, designerId }) => ({ url: `/requests/${requestId}/assign`, method: 'PATCH', body: { designerId } }), invalidatesTags: (result, error, arg) => [{ type: 'Request', id: arg.requestId }] }),
+    addComment: builder.mutation<any, { requestId: number; content: string }>({ 
+        query: ({ requestId, content }) => ({ url: `/requests/${requestId}/comments`, method: 'POST', body: { content } }), 
+        invalidatesTags: ['Comments', 'Request'] 
+    }),
+    assignRequest: builder.mutation<any, { requestId: number; designerId: string }>({ 
+        query: ({ requestId, designerId }) => ({ url: `/requests/${requestId}/assign`, method: 'PATCH', body: { designerId } }), 
+        invalidatesTags: (result, error, arg) => [{ type: 'Request', id: arg.requestId }, 'Request'] 
+    }),
     startDesign: builder.mutation<any, { requestId: number }>({
         query: ({ requestId }) => ({
             url: `/requests/${requestId}/start-design`,
             method: 'PATCH',
         }),
-        invalidatesTags: (result, error, arg) => [{ type: 'Request', id: arg.requestId }],
+        invalidatesTags: (result, error, arg) => [{ type: 'Request', id: arg.requestId }, 'Request'],
     }),
     returnRequest: builder.mutation<any, FormData>({
         query: (formData) => ({
@@ -94,7 +113,10 @@ export const apiSlice = createApi({
             method: 'PATCH',
             body: formData,
         }),
-        invalidatesTags: (result, error, arg) => [{ type: 'Request', id: Number(arg.get('requestId')) }],
+        invalidatesTags: (result, error, arg) => [
+            { type: 'Request', id: Number(arg.get('requestId')) },
+            'Request' // Invalidate general tag to refresh inbox counts
+        ],
     }),
     completeDesign: builder.mutation<any, FormData>({
       query: (formData) => {
@@ -105,7 +127,7 @@ export const apiSlice = createApi({
               body: formData,
           };
       },
-      invalidatesTags: (result, error, arg) => [{ type: 'Request', id: Number(arg.get('requestId')) }],
+      invalidatesTags: (result, error, arg) => [{ type: 'Request', id: Number(arg.get('requestId')) }, 'Request'],
     }),
     processApproval: builder.mutation<any, FormData>({
         query: (formData) => ({
@@ -113,10 +135,16 @@ export const apiSlice = createApi({
             method: 'PATCH',
             body: formData,
         }),
-        invalidatesTags: (result, error, arg) => [{ type: 'Request', id: Number(arg.get('requestId')) }],
+        invalidatesTags: (result, error, arg) => [{ type: 'Request', id: Number(arg.get('requestId')) }, 'Request'],
     }),
-    resubmitRequest: builder.mutation<any, { requestId: number }>({ query: ({ requestId }) => ({ url: `/requests/${requestId}/resubmit`, method: 'PATCH', }), invalidatesTags: (result, error, arg) => [{ type: 'Request', id: arg.requestId }] }),
-    resubmitForApproval: builder.mutation<any, { requestId: number }>({ query: ({ requestId }) => ({ url: `/requests/${requestId}/resubmit-for-approval`, method: 'PATCH', }), invalidatesTags: (result, error, arg) => [{ type: 'Request', id: arg.requestId }] }),
+    resubmitRequest: builder.mutation<any, { requestId: number }>({ 
+        query: ({ requestId }) => ({ url: `/requests/${requestId}/resubmit`, method: 'PATCH', }), 
+        invalidatesTags: (result, error, arg) => [{ type: 'Request', id: arg.requestId }, 'Request'] 
+    }),
+    resubmitForApproval: builder.mutation<any, { requestId: number }>({ 
+        query: ({ requestId }) => ({ url: `/requests/${requestId}/resubmit-for-approval`, method: 'PATCH', }), 
+        invalidatesTags: (result, error, arg) => [{ type: 'Request', id: arg.requestId }, 'Request'] 
+    }),
     getAvailability: builder.query<any[], { startDate: string; endDate: string }>({ query: ({ startDate, endDate }) => `/availability?startDate=${startDate}&endDate=${endDate}` }),
     getUsersWithRoles: builder.query<any[], void>({
     query: () => '/admin/users',
@@ -219,6 +247,15 @@ export const apiSlice = createApi({
         invalidatesTags: ['Users'],
     }),
 
+    resetUserPassword: builder.mutation<any, { userId: string; newPassword: string; confirmPassword: string }>({
+        query: ({ userId, newPassword, confirmPassword }) => ({
+            url: `/admin/users/${userId}/reset-password`,
+            method: 'POST',
+            body: { newPassword, confirmPassword },
+        }),
+        invalidatesTags: ['Users'],
+    }),
+
     // Notification endpoints
     getNotifications: builder.query<any[], void>({
         query: () => '/notifications',
@@ -278,9 +315,12 @@ export const {
     useCreateUserMutation,
     useToggleUserStatusMutation,
     useUpdateUserMutation,
+    useResetUserPasswordMutation,
     useStartDesignMutation,
     useGetNotificationsQuery,
     useGetUnreadCountQuery,
     useMarkAsReadMutation,
     useMarkAllAsReadMutation,
+    useGetInboxCountsQuery,
+    useMarkInboxAsViewedMutation,
 } = apiSlice;

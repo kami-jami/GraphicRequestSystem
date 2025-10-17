@@ -1,4 +1,4 @@
-import { useGetUsersWithRolesQuery, useUpdateUserRolesMutation, useCreateUserMutation, useToggleUserStatusMutation, useUpdateUserMutation } from '../../services/apiSlice';
+import { useGetUsersWithRolesQuery, useUpdateUserRolesMutation, useCreateUserMutation, useToggleUserStatusMutation, useUpdateUserMutation, useResetUserPasswordMutation } from '../../services/apiSlice';
 import { Box, CircularProgress, Typography, IconButton, Chip, Button } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
 import type { GridColDef, GridRenderCellParams } from '@mui/x-data-grid';
@@ -7,11 +7,13 @@ import ToggleOnIcon from '@mui/icons-material/ToggleOn';
 import ToggleOffIcon from '@mui/icons-material/ToggleOff';
 import AddIcon from '@mui/icons-material/Add';
 import PersonIcon from '@mui/icons-material/Person';
+import LockResetIcon from '@mui/icons-material/LockReset';
 import { useState } from 'react';
 import EditUserRolesModal from '../../components/EditUserRolesModal';
 import ConfirmationDialog from '../../components/ConfirmationDialog';
 import AddUserModal from '../../components/AddUserModal';
 import EditUserModal from '../../components/EditUserModal';
+import ResetPasswordModal from '../../components/ResetPasswordModal';
 import { useDispatch } from 'react-redux';
 import { showNotification } from '../../services/notificationSlice';
 import { mapRoleToPersian } from '../../utils/mappers';
@@ -23,6 +25,7 @@ const UserManagementPage = () => {
     const [createUser, { isLoading: isCreatingUser }] = useCreateUserMutation();
     const [toggleUserStatus, { isLoading: isTogglingStatus }] = useToggleUserStatusMutation();
     const [updateUser, { isLoading: isUpdatingUser }] = useUpdateUserMutation();
+    const [resetUserPassword, { isLoading: isResettingPassword }] = useResetUserPasswordMutation();
 
 
     const [isEditModalOpen, setEditModalOpen] = useState(false);
@@ -32,6 +35,7 @@ const UserManagementPage = () => {
 
     const [isEditRolesModalOpen, setEditRolesModalOpen] = useState(false);
     const [isEditUserModalOpen, setEditUserModalOpen] = useState(false);
+    const [isResetPasswordModalOpen, setResetPasswordModalOpen] = useState(false);
 
     const handleOpenEditModal = (user: any) => {
         setSelectedUser(user);
@@ -86,6 +90,38 @@ const UserManagementPage = () => {
         }
     };
 
+    const handleResetPassword = async (newPassword: string, confirmPassword: string) => {
+        if (selectedUser) {
+            try {
+                await resetUserPassword({ userId: selectedUser.id, newPassword, confirmPassword }).unwrap();
+                dispatch(showNotification({ message: 'رمز عبور کاربر با موفقیت بازنشانی شد.', severity: 'success' }));
+                setResetPasswordModalOpen(false);
+                return { success: true };
+            } catch (error: any) {
+                // Extract detailed error messages from ASP.NET Identity validation
+                let errorMessage = 'خطا در بازنشانی رمز عبور';
+
+                if (error.data?.errors && Array.isArray(error.data.errors)) {
+                    // Map Identity errors to Persian messages
+                    errorMessage = error.data.errors.map((err: any) => {
+                        if (err.description) return err.description;
+                        if (err.code === 'PasswordTooShort') return 'رمز عبور باید حداقل 6 کاراکتر باشد.';
+                        if (err.code === 'PasswordRequiresNonAlphanumeric') return 'رمز عبور باید شامل حداقل یک کاراکتر خاص باشد.';
+                        if (err.code === 'PasswordRequiresDigit') return 'رمز عبور باید شامل حداقل یک عدد باشد.';
+                        if (err.code === 'PasswordRequiresUpper') return 'رمز عبور باید شامل حداقل یک حرف بزرگ باشد.';
+                        if (err.code === 'PasswordRequiresLower') return 'رمز عبور باید شامل حداقل یک حرف کوچک باشد.';
+                        return err.code || 'خطای نامشخص';
+                    }).join('\n');
+                } else if (error.data?.message) {
+                    errorMessage = error.data.message;
+                }
+
+                return { success: false, error: errorMessage };
+            }
+        }
+        return { success: false, error: 'خطای نامشخص' };
+    };
+
     const columns: GridColDef[] = [
         { field: 'username', headerName: 'نام کاربری', width: 200 },
         { field: 'email', headerName: 'ایمیل', width: 250 },
@@ -101,11 +137,12 @@ const UserManagementPage = () => {
         {
             field: 'actions',
             headerName: 'عملیات',
-            width: 150,
+            width: 200,
             renderCell: (params: GridRenderCellParams) => (
                 <>
                     <IconButton onClick={() => { setSelectedUser(params.row); setEditUserModalOpen(true); }} title="ویرایش اطلاعات"><PersonIcon /></IconButton>
                     <IconButton onClick={() => { setSelectedUser(params.row); setEditRolesModalOpen(true); }} title="ویرایش نقش‌ها"><EditIcon /></IconButton>
+                    <IconButton onClick={() => { setSelectedUser(params.row); setResetPasswordModalOpen(true); }} color="warning" title="بازنشانی رمز عبور"><LockResetIcon /></IconButton>
                     <IconButton onClick={() => { setSelectedUser(params.row); setConfirmOpen(true); }} color={params.row.isActive ? "error" : "success"} title={params.row.isActive ? "غیرفعال کردن" : "فعال کردن"}>
                         {params.row.isActive ? <ToggleOffIcon /> : <ToggleOnIcon />}
                     </IconButton>
@@ -114,7 +151,7 @@ const UserManagementPage = () => {
         },
     ];
 
-    const isActionLoading = isUpdatingRoles || isCreatingUser || isTogglingStatus || isUpdatingUser;
+    const isActionLoading = isUpdatingRoles || isCreatingUser || isTogglingStatus || isUpdatingUser || isResettingPassword;
 
     return (
         <>
@@ -137,6 +174,10 @@ const UserManagementPage = () => {
 
             {selectedUser && (
                 <EditUserModal open={isEditUserModalOpen} onClose={() => setEditUserModalOpen(false)} onSubmit={handleUpdateUser} user={selectedUser} />
+            )}
+
+            {selectedUser && (
+                <ResetPasswordModal open={isResetPasswordModalOpen} onClose={() => setResetPasswordModalOpen(false)} onSubmit={handleResetPassword} userName={selectedUser.username} />
             )}
 
             <AddUserModal open={isAddModalOpen} onClose={() => setAddModalOpen(false)} onSubmit={handleCreateUser} />

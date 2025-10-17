@@ -113,6 +113,125 @@ namespace GraphicRequestSystem.API.Controllers
             return Ok(requests);
         }
 
+        // GET: api/Requests/inbox-counts
+        [HttpGet("inbox-counts")]
+        public async Task<IActionResult> GetInboxCounts()
+        {
+            var userId = User.FindFirstValue("id");
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized();
+            }
+
+            var currentUser = await _userManager.FindByIdAsync(userId);
+            var userRoles = await _userManager.GetRolesAsync(currentUser);
+
+            var counts = new Dictionary<string, int>();
+
+            // Helper method to get count of NEW items since last view
+            async Task<int> GetNewItemsCount(string categoryKey, Func<IQueryable<Request>, IQueryable<Request>> filter)
+            {
+                var lastView = await _context.InboxViews
+                    .Where(iv => iv.UserId == userId && iv.InboxCategory == categoryKey)
+                    .FirstOrDefaultAsync();
+
+                var query = _context.Requests.AsQueryable();
+                query = filter(query);
+
+                if (lastView != null)
+                {
+                    // Count items that were created or updated after last view
+                    return await query.CountAsync(r => r.SubmissionDate > lastView.LastViewedAt ||
+                        _context.RequestHistories.Any(h => h.RequestId == r.Id && h.ActionDate > lastView.LastViewedAt));
+                }
+
+                // If never viewed, count all items
+                return await query.CountAsync();
+            }
+
+            // Requester counts
+            if (userRoles.Contains("Requester"))
+            {
+                counts["requester_needsAction"] = await GetNewItemsCount("requester_needsAction",
+                    q => q.Where(r => r.RequesterId == userId && r.Status == RequestStatus.PendingCorrection));
+
+                counts["requester_underReview"] = await GetNewItemsCount("requester_underReview",
+                    q => q.Where(r => r.RequesterId == userId && (r.Status == RequestStatus.Submitted || r.Status == RequestStatus.DesignerReview)));
+
+                counts["requester_inDesign"] = await GetNewItemsCount("requester_inDesign",
+                    q => q.Where(r => r.RequesterId == userId && (r.Status == RequestStatus.DesignInProgress || r.Status == RequestStatus.PendingRedesign)));
+
+                counts["requester_completed"] = await GetNewItemsCount("requester_completed",
+                    q => q.Where(r => r.RequesterId == userId && r.Status == RequestStatus.Completed));
+            }
+
+            // Designer counts
+            if (userRoles.Contains("Designer"))
+            {
+                var twoDaysFromNow = DateTime.Now.AddDays(2);
+
+                counts["designer_urgentToStart"] = await GetNewItemsCount("designer_urgentToStart",
+                    q => q.Where(r => r.DesignerId == userId && r.Status == RequestStatus.DesignerReview && r.Priority == RequestPriority.Urgent));
+
+                counts["designer_approachingDeadline"] = await GetNewItemsCount("designer_approachingDeadline",
+                    q => q.Where(r => r.DesignerId == userId &&
+                        (r.Status == RequestStatus.DesignInProgress || r.Status == RequestStatus.PendingRedesign) &&
+                        r.DueDate.HasValue && r.DueDate.Value <= twoDaysFromNow));
+
+                counts["designer_inProgress"] = await GetNewItemsCount("designer_inProgress",
+                    q => q.Where(r => r.DesignerId == userId && (r.Status == RequestStatus.DesignInProgress || r.Status == RequestStatus.PendingRedesign)));
+
+                counts["designer_waitingToStart"] = await GetNewItemsCount("designer_waitingToStart",
+                    q => q.Where(r => r.DesignerId == userId && r.Status == RequestStatus.DesignerReview));
+
+                counts["designer_completed"] = await GetNewItemsCount("designer_completed",
+                    q => q.Where(r => r.DesignerId == userId && r.Status == RequestStatus.Completed));
+            }
+
+            // Approver counts
+            if (userRoles.Contains("Approver"))
+            {
+                counts["approver_pendingApproval"] = await GetNewItemsCount("approver_pendingApproval",
+                    q => q.Where(r => r.ApproverId == userId && r.Status == RequestStatus.PendingApproval));
+
+                counts["approver_urgentApproval"] = await GetNewItemsCount("approver_urgentApproval",
+                    q => q.Where(r => r.ApproverId == userId && r.Status == RequestStatus.PendingApproval && r.Priority == RequestPriority.Urgent));
+            }
+
+            return Ok(counts);
+        }
+
+        // POST: api/Requests/mark-inbox-viewed
+        [HttpPost("mark-inbox-viewed")]
+        public async Task<IActionResult> MarkInboxAsViewed([FromBody] string inboxCategory)
+        {
+            var userId = User.FindFirstValue("id");
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized();
+            }
+
+            var existingView = await _context.InboxViews
+                .FirstOrDefaultAsync(iv => iv.UserId == userId && iv.InboxCategory == inboxCategory);
+
+            if (existingView != null)
+            {
+                existingView.LastViewedAt = DateTime.Now;
+            }
+            else
+            {
+                _context.InboxViews.Add(new InboxView
+                {
+                    UserId = userId,
+                    InboxCategory = inboxCategory,
+                    LastViewedAt = DateTime.Now
+                });
+            }
+
+            await _context.SaveChangesAsync();
+            return Ok();
+        }
+
         // POST: api/Requests
         [Authorize(Roles = "Requester")]
         [HttpPost]

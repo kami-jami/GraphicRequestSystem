@@ -29,6 +29,7 @@ namespace GraphicRequestSystem.API.Infrastructure.Data
         public DbSet<EnvironmentalAdDetail> EnvironmentalAdDetails { get; set; }
         public DbSet<MiscellaneousDetail> MiscellaneousDetails { get; set; }
         public DbSet<Notification> Notifications { get; set; }
+        public DbSet<InboxView> InboxViews { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -154,6 +155,17 @@ namespace GraphicRequestSystem.API.Infrastructure.Data
                 new SystemSetting { Id = 5, SettingKey = "DefaultDesignerId", SettingValue = "b5fc3c65-9d43-4558-bb11-dd82eba9149d" }
 
             );
+
+            // InboxView configuration
+            modelBuilder.Entity<InboxView>()
+                .HasOne(iv => iv.User)
+                .WithMany()
+                .HasForeignKey(iv => iv.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<InboxView>()
+                .HasIndex(iv => new { iv.UserId, iv.InboxCategory })
+                .IsUnique();
         }
     }
 }

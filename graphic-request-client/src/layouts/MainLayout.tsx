@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { AppBar, Box, CssBaseline, Drawer, List, ListItemButton, ListItemIcon, ListItemText, Toolbar, Typography, Divider, Collapse } from '@mui/material';
+import { AppBar, Box, CssBaseline, Drawer, List, ListItemButton, ListItemIcon, ListItemText, Toolbar, Typography, Divider, Collapse, Badge } from '@mui/material';
 import { Outlet, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { selectCurrentUser, logOut } from '../pages/auth/authSlice';
@@ -11,7 +11,7 @@ import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import { useLocation } from 'react-router-dom';
-import { apiSlice, useGetNotificationsQuery, useGetUnreadCountQuery } from '../services/apiSlice';
+import { apiSlice, useGetNotificationsQuery, useGetUnreadCountQuery, useGetInboxCountsQuery, useMarkInboxAsViewedMutation } from '../services/apiSlice';
 import { useSignalR } from '../services/useSignalR';
 import {
     setSignalRNotifications,
@@ -42,9 +42,11 @@ const MainLayout = () => {
     const [openWorklist, setOpenWorklist] = useState(true);
     const [openAdminMenu, setOpenAdminMenu] = useState(true);
 
-    // Fetch notifications on mount
+    // Fetch notifications and inbox counts
     const { data: notifications } = useGetNotificationsQuery();
     const { data: unreadCountData } = useGetUnreadCountQuery();
+    const { data: inboxCounts = {}, refetch: refetchInboxCounts } = useGetInboxCountsQuery();
+    const [markInboxAsViewed] = useMarkInboxAsViewedMutation();
 
     // Update Redux state when notifications are fetched
     useEffect(() => {
@@ -88,12 +90,49 @@ const MainLayout = () => {
         navigate(path);
     };
 
-    const worklistItems = [
-        { text: 'درخواست‌های در حال انجام', statuses: [3, 5] },
-        { text: 'درخواست‌های منتظر تایید', statuses: [4] },
-        { text: 'درخواست‌های نیازمند اصلاح', statuses: [2] },
-        { text: 'همه درخواست‌ها', statuses: [] },
-    ];
+    // Role-based inbox items
+    const getWorklistItems = () => {
+        const userRoles = user?.roles || [];
+
+        if (userRoles.includes('Requester')) {
+            return [
+                { text: '🔴 نیاز به اقدام', statuses: [2], countKey: 'requester_needsAction', color: 'error' },
+                { text: '⏳ در حال بررسی', statuses: [0, 1], countKey: 'requester_underReview' },
+                { text: '🎨 در حال طراحی', statuses: [3, 5], countKey: 'requester_inDesign' },
+                { text: '✅ تکمیل شده', statuses: [6], countKey: 'requester_completed' },
+                { text: '📋 همه درخواست‌های من', statuses: [] },
+            ];
+        }
+
+        if (userRoles.includes('Designer')) {
+            return [
+                { text: '🔥 فوری - نیاز به شروع', statuses: [1], urgent: true, countKey: 'designer_urgentToStart', color: 'error' },
+                { text: '🔴 نزدیک به سررسید', statuses: [3, 5], nearDeadline: true, countKey: 'designer_approachingDeadline', color: 'warning' },
+                { text: '🎯 در حال انجام', statuses: [3, 5], countKey: 'designer_inProgress' },
+                { text: '📬 منتظر شروع', statuses: [1], countKey: 'designer_waitingToStart' },
+                { text: '✅ تکمیل شده', statuses: [6], countKey: 'designer_completed' },
+                { text: '📋 همه کارهای من', statuses: [] },
+            ];
+        }
+
+        if (userRoles.includes('Approver')) {
+            return [
+                { text: '🔴 منتظر تایید من', statuses: [4], countKey: 'approver_pendingApproval', color: 'error' },
+                { text: '⏰ فوری - نیاز به تایید', statuses: [4], urgent: true, countKey: 'approver_urgentApproval', color: 'warning' },
+                { text: '📋 سابقه تایید‌های من', statuses: [6] },
+            ];
+        }
+
+        // Default (Admin or others)
+        return [
+            { text: 'درخواست‌های در حال انجام', statuses: [3, 5] },
+            { text: 'درخواست‌های منتظر تایید', statuses: [4] },
+            { text: 'درخواست‌های نیازمند اصلاح', statuses: [2] },
+            { text: 'همه درخواست‌ها', statuses: [] },
+        ];
+    };
+
+    const worklistItems = getWorklistItems();
 
     const adminMenuItems = [
         { text: 'مدیریت کاربران', path: '/admin/users' },
@@ -128,17 +167,40 @@ const MainLayout = () => {
                         </ListItemButton>
                         <Collapse in={openWorklist} timeout="auto" unmountOnExit>
                             <List component="div" disablePadding>
-                                {worklistItems.map((item) => {
-                                    const queryParams = new URLSearchParams(item.statuses.map(s => ['statuses', s.toString()])).toString();
+                                {worklistItems.map((item: any) => {
+                                    const queryParams = new URLSearchParams(item.statuses.map((s: number) => ['statuses', s.toString()])).toString();
                                     const path = `/requests?${queryParams}`;
+                                    const count = item.countKey ? inboxCounts[item.countKey] : undefined;
+                                    const showBadge = count !== undefined && count > 0;
+
+                                    const handleInboxClick = async () => {
+                                        // Mark inbox as viewed to reset counter
+                                        if (item.countKey) {
+                                            try {
+                                                await markInboxAsViewed(item.countKey).unwrap();
+                                                refetchInboxCounts();
+                                            } catch (error) {
+                                                console.error('Failed to mark inbox as viewed:', error);
+                                            }
+                                        }
+                                        handleNavigate(path);
+                                    };
+
                                     return (
                                         <ListItemButton
                                             key={item.text}
                                             sx={{ pr: 4 }}
-                                            onClick={() => handleNavigate(path)}
+                                            onClick={handleInboxClick}
                                             selected={location.pathname === '/requests' && location.search === `?${queryParams}`}
                                         >
                                             <ListItemText primary={item.text} />
+                                            {showBadge && (
+                                                <Badge
+                                                    badgeContent={count}
+                                                    color={item.color || 'primary'}
+                                                    sx={{ ml: 1 }}
+                                                />
+                                            )}
                                         </ListItemButton>
                                     );
                                 })}

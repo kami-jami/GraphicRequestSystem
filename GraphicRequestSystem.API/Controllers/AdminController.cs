@@ -323,7 +323,7 @@ namespace GraphicRequestSystem.API.Controllers
                 return NotFound("کاربر یافت نشد.");
             }
 
-            user.IsActive = !user.IsActive; 
+            user.IsActive = !user.IsActive;
             var result = await _userManager.UpdateAsync(user);
 
             if (!result.Succeeded)
@@ -356,6 +356,38 @@ namespace GraphicRequestSystem.API.Controllers
             }
 
             return Ok(new { message = "اطلاعات کاربر با موفقیت به‌روز شد." });
+        }
+
+        // POST: api/Admin/users/{id}/reset-password
+        [HttpPost("users/{id}/reset-password")]
+        public async Task<IActionResult> ResetUserPassword(string id, [FromBody] ResetPasswordDto resetPasswordDto)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            var user = await _userManager.FindByIdAsync(id);
+            if (user == null)
+            {
+                return NotFound("کاربر یافت نشد.");
+            }
+
+            // حذف رمز عبور فعلی
+            var removePasswordResult = await _userManager.RemovePasswordAsync(user);
+            if (!removePasswordResult.Succeeded)
+            {
+                return BadRequest(new { message = "خطا در تغییر رمز عبور.", errors = removePasswordResult.Errors });
+            }
+
+            // تنظیم رمز عبور جدید
+            var addPasswordResult = await _userManager.AddPasswordAsync(user, resetPasswordDto.NewPassword);
+            if (!addPasswordResult.Succeeded)
+            {
+                return BadRequest(new { message = "خطا در تنظیم رمز عبور جدید.", errors = addPasswordResult.Errors });
+            }
+
+            return Ok(new { message = "رمز عبور کاربر با موفقیت بازنشانی شد." });
         }
 
         //// GET: api/Admin/approvers
