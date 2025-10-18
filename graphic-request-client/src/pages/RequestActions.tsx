@@ -144,6 +144,20 @@ const RequestActions = ({ request }: { request: any }) => {
     if (request.status === 6) return null;
     if (!user || !user.roles) return null;
 
+    // Check if user has any available actions
+    const hasActions =
+        // Designer can start design (status 1)
+        (request.status === 1 && user.id === request.designerId) ||
+        // Designer can send for approval or complete (status 3 or 5)
+        ((request.status === 3 || request.status === 5) && user.id === request.designerId) ||
+        // Approver can approve/reject (status 4)
+        (request.status === 4 && user.id === request.approverId) ||
+        // Requester can edit/resubmit (status 2)
+        (request.status === 2 && user.id === request.requesterId);
+
+    // If no actions available, don't render the action box
+    if (!hasActions) return null;
+
 
     return (
         <>

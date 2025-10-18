@@ -10,7 +10,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Migrations;
 using System.Security.Claims;
-using System.Security.Claims;
 using GraphicRequestSystem.API.Helpers;
 using GraphicRequestSystem.API.Core.Interfaces;
 
@@ -78,7 +77,15 @@ namespace GraphicRequestSystem.API.Controllers
 
             if (!string.IsNullOrEmpty(searchTerm))
             {
-                query = query.Where(r => r.Title.Contains(searchTerm));
+                // جستجو در چندین فیلد: عنوان، نام درخواست‌دهنده، نام کاربری، و نوع درخواست
+                query = query.Where(r =>
+                    r.Title.Contains(searchTerm) ||
+                    (r.Requester.FirstName != null && r.Requester.FirstName.Contains(searchTerm)) ||
+                    (r.Requester.LastName != null && r.Requester.LastName.Contains(searchTerm)) ||
+                    (r.Requester.UserName != null && r.Requester.UserName.Contains(searchTerm)) ||
+                    r.RequestType.Value.Contains(searchTerm) ||
+                    r.Id.ToString().Contains(searchTerm)
+                );
             }
 
             // --- 5. اعمال مرتب‌سازی ---
@@ -96,6 +103,7 @@ namespace GraphicRequestSystem.API.Controllers
             // --- 6. انتخاب فیلدهای نهایی و اجرای کوئری ---
             var requests = await query
                 .Include(r => r.Requester) // Include برای دسترسی به نام درخواست‌دهنده لازم است
+                .Include(r => r.RequestType) // Include برای دسترسی به نوع درخواست
                 .Select(r => new
                 {
                     r.Id,
@@ -106,6 +114,7 @@ namespace GraphicRequestSystem.API.Controllers
                         ? r.Requester.FirstName + " " + r.Requester.LastName
                         : r.Requester.UserName,
                     RequesterUsername = r.Requester.UserName,
+                    RequestTypeName = r.RequestType.Value, // اضافه کردن نام نوع درخواست
                     r.DueDate
                 })
                 .ToListAsync();
