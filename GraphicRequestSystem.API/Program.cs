@@ -17,6 +17,14 @@ using GraphicRequestSystem.API.Infrastructure.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+//builder.Logging.ClearProviders();
+//builder.Logging.AddConsole();
+
+//builder.Logging.AddFilter((category, level) =>
+//{
+//    return category.Contains("designer_pendingAction", StringComparison.OrdinalIgnoreCase);
+//});
+
 var myAllowSpecificOrigins = "_myAllowSpecificOrigins";
 
 // Add services to the container.

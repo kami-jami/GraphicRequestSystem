@@ -9,5 +9,6 @@ namespace GraphicRequestSystem.API.Core.Interfaces
         Task<int> GetUnreadCountAsync(string userId);
         Task MarkAsReadAsync(int notificationId, string userId);
         Task MarkAllAsReadAsync(string userId);
+        Task SendInboxUpdateAsync(params string[] userIds);
     }
 }

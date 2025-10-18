@@ -15,7 +15,8 @@ interface Notification {
 export const useSignalR = (
     onNotificationReceived: (notification: Notification) => void,
     onNotificationRead: (notificationId: number) => void,
-    onAllNotificationsRead: () => void
+    onAllNotificationsRead: () => void,
+    onInboxUpdate?: () => void
 ) => {
     const token = useSelector(selectCurrentUserToken);
     const connectionRef = useRef<HubConnection | null>(null);
@@ -37,6 +38,11 @@ export const useSignalR = (
         connection.on('ReceiveNotification', onNotificationReceived);
         connection.on('NotificationRead', onNotificationRead);
         connection.on('AllNotificationsRead', onAllNotificationsRead);
+        
+        // Listen for inbox updates
+        if (onInboxUpdate) {
+            connection.on('InboxUpdate', onInboxUpdate);
+        }
 
         connection
             .start()
@@ -53,7 +59,7 @@ export const useSignalR = (
         return () => {
             connection.stop();
         };
-    }, [token, onNotificationReceived, onNotificationRead, onAllNotificationsRead]);
+    }, [token, onNotificationReceived, onNotificationRead, onAllNotificationsRead, onInboxUpdate]);
 
     return connectionRef.current;
 };

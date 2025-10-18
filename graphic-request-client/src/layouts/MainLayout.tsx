@@ -74,8 +74,18 @@ const MainLayout = () => {
         dispatch(markAllSignalRNotificationsAsRead());
     }, [dispatch]);
 
+    const handleInboxUpdate = useCallback(() => {
+        // Refetch inbox counts when an inbox update is received
+        console.log('📬 InboxUpdate received - refetching counts...');
+        console.log('Current inbox counts:', inboxCounts);
+        refetchInboxCounts().then((result) => {
+            console.log('✅ Inbox counts refetched successfully');
+            console.log('New inbox counts:', result.data);
+        });
+    }, [refetchInboxCounts, inboxCounts]);
+
     // Initialize SignalR connection
-    useSignalR(handleNotificationReceived, handleNotificationRead, handleAllNotificationsRead);
+    useSignalR(handleNotificationReceived, handleNotificationRead, handleAllNotificationsRead, handleInboxUpdate);
 
     const userDisplayName = (user?.firstName || user?.lastName) ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : user?.username;
 

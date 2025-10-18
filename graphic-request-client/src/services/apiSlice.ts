@@ -62,7 +62,7 @@ export const apiSlice = createApi({
       invalidatesTags: ['Request', 'InboxCounts'],
     }),
     // ... تمام endpoint های دیگر شما ...
-    getDashboardStats: builder.query<any, void>({ query: () => '/admin/dashboard' }),
+    getDashboardStats: builder.query<any, void>({ query: () => '/requests/dashboard-stats' }),
     // getRequests: builder.query<any[], void>({ query: () => '/requests', providesTags: ['Request'] }),
     getRequests: builder.query<any[], GetRequestsParams>({
         query: (params) => {

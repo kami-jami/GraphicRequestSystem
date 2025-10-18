@@ -138,15 +138,30 @@ namespace GraphicRequestSystem.API.Controllers
                 var query = _context.Requests.AsQueryable();
                 query = filter(query);
 
+                var totalInCategory = await query.CountAsync();
+                Console.WriteLine($"🔍 [{categoryKey}] Total items in category: {totalInCategory}");
+
                 if (lastView != null)
                 {
-                    // Count items that were created or updated after last view
-                    return await query.CountAsync(r => r.SubmissionDate > lastView.LastViewedAt ||
-                        _context.RequestHistories.Any(h => h.RequestId == r.Id && h.ActionDate > lastView.LastViewedAt));
+                    Console.WriteLine($"🔍 [{categoryKey}] LastViewedAt: {lastView.LastViewedAt:yyyy-MM-dd HH:mm:ss}");
+
+                    // Count items where:
+                    // 1. Request was created after last view, OR
+                    // 2. Request has a history entry after last view (status change, comment, etc.)
+                    var requestsWithRecentActivity = await query
+                        .Where(r => r.SubmissionDate > lastView.LastViewedAt ||
+                                   _context.RequestHistories
+                                       .Where(h => h.RequestId == r.Id && h.ActionDate > lastView.LastViewedAt)
+                                       .Any())
+                        .CountAsync();
+
+                    Console.WriteLine($"🔍 [{categoryKey}] New items since last view: {requestsWithRecentActivity}");
+                    return requestsWithRecentActivity;
                 }
 
                 // If never viewed, count all items
-                return await query.CountAsync();
+                Console.WriteLine($"🔍 [{categoryKey}] Never viewed, returning all items: {totalInCategory}");
+                return totalInCategory;
             }
 
             // Requester counts
@@ -217,7 +232,7 @@ namespace GraphicRequestSystem.API.Controllers
 
             if (existingView != null)
             {
-                existingView.LastViewedAt = DateTime.Now;
+                existingView.LastViewedAt = DateTime.UtcNow; // Changed from DateTime.Now to DateTime.UtcNow
             }
             else
             {
@@ -225,12 +240,107 @@ namespace GraphicRequestSystem.API.Controllers
                 {
                     UserId = userId,
                     InboxCategory = inboxCategory,
-                    LastViewedAt = DateTime.Now
+                    LastViewedAt = DateTime.UtcNow // Changed from DateTime.Now to DateTime.UtcNow
                 });
             }
 
             await _context.SaveChangesAsync();
             return Ok();
+        }
+
+        // GET: api/Requests/dashboard-stats
+        [HttpGet("dashboard-stats")]
+        public async Task<IActionResult> GetDashboardStats()
+        {
+            var userId = User.FindFirstValue("id");
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized();
+            }
+
+            var currentUser = await _userManager.FindByIdAsync(userId);
+            var userRoles = await _userManager.GetRolesAsync(currentUser);
+
+            var dashboardDto = new AdminDashboardDto();
+
+            // If Admin, show all stats
+            if (userRoles.Contains("Admin"))
+            {
+                // 1. Get total user count
+                dashboardDto.TotalUsers = await _userManager.Users.CountAsync();
+
+                // 2. Get request stats
+                var allRequests = await _context.Requests.ToListAsync();
+
+                dashboardDto.TotalRequests = allRequests.Count;
+
+                var nonCompletedStatuses = new[] {
+                    RequestStatus.Submitted, RequestStatus.DesignerReview, RequestStatus.PendingCorrection,
+                    RequestStatus.DesignInProgress, RequestStatus.PendingApproval, RequestStatus.PendingRedesign
+                };
+
+                dashboardDto.PendingRequests = allRequests.Count(r => nonCompletedStatuses.Contains(r.Status));
+
+                dashboardDto.OverdueRequests = allRequests.Count(r => nonCompletedStatuses.Contains(r.Status) && r.DueDate < DateTime.UtcNow);
+
+                // 3. Get request counts by status
+                dashboardDto.RequestsByStatus = allRequests
+                    .GroupBy(r => r.Status)
+                    .Select(g => new StatusCountDto
+                    {
+                        Status = g.Key,
+                        StatusName = g.Key.ToString(),
+                        Count = g.Count()
+                    })
+                    .ToList();
+            }
+            else
+            {
+                // For non-admin users, show only their own stats
+                dashboardDto.TotalUsers = 0; // Hide user count for non-admins
+
+                IQueryable<Request> userRequests = _context.Requests;
+
+                // Filter based on role
+                if (userRoles.Contains("Requester"))
+                {
+                    userRequests = userRequests.Where(r => r.RequesterId == userId);
+                }
+                else if (userRoles.Contains("Designer"))
+                {
+                    userRequests = userRequests.Where(r => r.DesignerId == userId);
+                }
+                else if (userRoles.Contains("Approver"))
+                {
+                    userRequests = userRequests.Where(r => r.ApproverId == userId);
+                }
+
+                var requests = await userRequests.ToListAsync();
+
+                dashboardDto.TotalRequests = requests.Count;
+
+                var nonCompletedStatuses = new[] {
+                    RequestStatus.Submitted, RequestStatus.DesignerReview, RequestStatus.PendingCorrection,
+                    RequestStatus.DesignInProgress, RequestStatus.PendingApproval, RequestStatus.PendingRedesign
+                };
+
+                dashboardDto.PendingRequests = requests.Count(r => nonCompletedStatuses.Contains(r.Status));
+
+                dashboardDto.OverdueRequests = requests.Count(r => nonCompletedStatuses.Contains(r.Status) && r.DueDate < DateTime.UtcNow);
+
+                // Get request counts by status for this user's requests
+                dashboardDto.RequestsByStatus = requests
+                    .GroupBy(r => r.Status)
+                    .Select(g => new StatusCountDto
+                    {
+                        Status = g.Key,
+                        StatusName = g.Key.ToString(),
+                        Count = g.Count()
+                    })
+                    .ToList();
+            }
+
+            return Ok(dashboardDto);
         }
 
         // POST: api/Requests
@@ -381,6 +491,9 @@ namespace GraphicRequestSystem.API.Controllers
                         $"درخواست جدیدی ثبت شد: {newRequest.Title}",
                         "NewRequest"
                     );
+
+                    // Send inbox update to default designer
+                    await _notificationService.SendInboxUpdateAsync(defaultDesignerId);
                 }
 
                 return Ok(newRequest);
@@ -412,19 +525,35 @@ namespace GraphicRequestSystem.API.Controllers
             }
 
             // 3. Update the request properties
+            var previousStatus = request.Status;
             request.DesignerId = assignDto.DesignerId;
             request.Status = Core.Enums.RequestStatus.DesignInProgress;
 
-            // 4. Save the changes
+            // 4. Create history log
+            var historyLog = new RequestHistory
+            {
+                RequestId = id,
+                ActionDate = DateTime.UtcNow,
+                ActorId = User.FindFirstValue("id"),
+                PreviousStatus = previousStatus,
+                NewStatus = request.Status,
+                Comment = $"یادداشت سیستمی: {HistoryMessageHelper.GetSystemMessageForStatusChange(request.Status)}"
+            };
+            await _context.RequestHistories.AddAsync(historyLog);
+
+            // 5. Save the changes
             await _context.SaveChangesAsync();
 
-            // 5. Send notification to the designer
+            // 6. Send notification to the designer
             await _notificationService.CreateNotificationAsync(
                 assignDto.DesignerId,
                 id,
                 $"یک درخواست جدید به شما تخصیص داده شد: {request.Title}",
                 "Assignment"
             );
+
+            // 7. Send inbox update to designer
+            await _notificationService.SendInboxUpdateAsync(assignDto.DesignerId);
 
             return Ok(request);
         }
@@ -519,6 +648,12 @@ namespace GraphicRequestSystem.API.Controllers
                         "ReturnForCorrection"
                     );
                 }
+
+                // Send inbox update to requester and designer
+                var usersToUpdate = new List<string>();
+                if (!string.IsNullOrEmpty(request.RequesterId)) usersToUpdate.Add(request.RequesterId);
+                if (!string.IsNullOrEmpty(request.DesignerId)) usersToUpdate.Add(request.DesignerId);
+                await _notificationService.SendInboxUpdateAsync(usersToUpdate.ToArray());
 
                 return Ok(request);
             }
@@ -632,6 +767,9 @@ namespace GraphicRequestSystem.API.Controllers
                         $"درخواست جدیدی منتظر تایید شماست: {request.Title}",
                         "PendingApproval"
                     );
+
+                    // Send inbox update to approver and designer
+                    await _notificationService.SendInboxUpdateAsync(request.ApproverId, request.DesignerId ?? "");
                 }
                 else if (newStatus == Core.Enums.RequestStatus.Completed && !string.IsNullOrEmpty(request.RequesterId))
                 {
@@ -641,6 +779,9 @@ namespace GraphicRequestSystem.API.Controllers
                         $"درخواست شما تکمیل شد: {request.Title}",
                         "Completed"
                     );
+
+                    // Send inbox update to requester and designer
+                    await _notificationService.SendInboxUpdateAsync(request.RequesterId, request.DesignerId ?? "");
                 }
 
                 return Ok(request);
@@ -763,6 +904,13 @@ namespace GraphicRequestSystem.API.Controllers
                             "Approved"
                         );
                     }
+
+                    // Send inbox update to requester, designer, and approver
+                    var usersToUpdate = new List<string>();
+                    if (!string.IsNullOrEmpty(request.RequesterId)) usersToUpdate.Add(request.RequesterId);
+                    if (!string.IsNullOrEmpty(request.DesignerId)) usersToUpdate.Add(request.DesignerId);
+                    if (!string.IsNullOrEmpty(request.ApproverId)) usersToUpdate.Add(request.ApproverId);
+                    await _notificationService.SendInboxUpdateAsync(usersToUpdate.ToArray());
                 }
                 else if (!approvalDto.IsApproved)
                 {
@@ -776,6 +924,12 @@ namespace GraphicRequestSystem.API.Controllers
                             "Redesign"
                         );
                     }
+
+                    // Send inbox update to designer and approver
+                    var usersToUpdate = new List<string>();
+                    if (!string.IsNullOrEmpty(request.DesignerId)) usersToUpdate.Add(request.DesignerId);
+                    if (!string.IsNullOrEmpty(request.ApproverId)) usersToUpdate.Add(request.ApproverId);
+                    await _notificationService.SendInboxUpdateAsync(usersToUpdate.ToArray());
                 }
 
                 return Ok(request);
@@ -1035,6 +1189,12 @@ namespace GraphicRequestSystem.API.Controllers
                 );
             }
 
+            // Send inbox update to designer and requester
+            var usersToUpdate = new List<string>();
+            if (!string.IsNullOrEmpty(request.DesignerId)) usersToUpdate.Add(request.DesignerId);
+            if (!string.IsNullOrEmpty(request.RequesterId)) usersToUpdate.Add(request.RequesterId);
+            await _notificationService.SendInboxUpdateAsync(usersToUpdate.ToArray());
+
             return Ok(request);
         }
 
@@ -1080,6 +1240,12 @@ namespace GraphicRequestSystem.API.Controllers
                     "ResubmitForApproval"
                 );
             }
+
+            // Send inbox update to approver and designer
+            var usersToUpdate = new List<string>();
+            if (!string.IsNullOrEmpty(request.ApproverId)) usersToUpdate.Add(request.ApproverId);
+            if (!string.IsNullOrEmpty(request.DesignerId)) usersToUpdate.Add(request.DesignerId);
+            await _notificationService.SendInboxUpdateAsync(usersToUpdate.ToArray());
 
             return Ok(request);
         }
@@ -1221,6 +1387,12 @@ namespace GraphicRequestSystem.API.Controllers
 
             await _context.RequestHistories.AddAsync(historyLog);
             await _context.SaveChangesAsync();
+
+            // Send inbox update to designer
+            if (!string.IsNullOrEmpty(designerId))
+            {
+                await _notificationService.SendInboxUpdateAsync(designerId);
+            }
 
             return Ok(request);
         }

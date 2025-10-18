@@ -93,5 +93,24 @@ namespace GraphicRequestSystem.API.Infrastructure.Services
             // Update client via SignalR
             await _hubContext.Clients.Group(userId).SendAsync("AllNotificationsRead");
         }
+
+        public async Task SendInboxUpdateAsync(params string[] userIds)
+        {
+            // Send real-time inbox update notification to specified users
+            var validUserIds = userIds.Where(id => !string.IsNullOrEmpty(id)).ToList();
+
+            if (validUserIds.Count == 0)
+            {
+                Console.WriteLine("⚠️ SendInboxUpdateAsync called but no valid user IDs provided");
+                return;
+            }
+
+            Console.WriteLine($"📬 Sending InboxUpdate to {validUserIds.Count} user(s): {string.Join(", ", validUserIds)}");
+
+            foreach (var userId in validUserIds)
+            {
+                await _hubContext.Clients.Group(userId).SendAsync("InboxUpdate");
+            }
+        }
     }
 }
