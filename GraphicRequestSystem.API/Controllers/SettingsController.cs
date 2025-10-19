@@ -25,6 +25,25 @@ namespace GraphicRequestSystem.API.Controllers
             return Ok(settings);
         }
 
+        // Public endpoint for non-sensitive settings (no auth required)
+        [HttpGet("public")]
+        public async Task<IActionResult> GetPublicSettings()
+        {
+            // Only return settings that are safe for public access
+            var publicSettingKeys = new[] 
+            { 
+                "OrderableDaysInFuture",
+                "MaxNormalRequestsPerDay",
+                "MaxUrgentRequestsPerDay"
+            };
+
+            var publicSettings = await _context.SystemSettings
+                .Where(s => publicSettingKeys.Contains(s.SettingKey))
+                .ToListAsync();
+
+            return Ok(publicSettings);
+        }
+
         [HttpPost]
         public async Task<IActionResult> CreateSetting(CreateSettingDto createSettingDto)
         {

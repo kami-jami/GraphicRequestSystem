@@ -36,7 +36,7 @@ const baseQueryWithReauth: typeof baseQuery = async (args, api, extraOptions) =>
 export const apiSlice = createApi({
   reducerPath: 'api',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['Comments', 'Request', 'Users', 'Settings', 'Lookups', 'Notifications', 'InboxCounts'],
+  tagTypes: ['Comments', 'Request', 'Users', 'Settings', 'Lookups', 'Notifications', 'InboxCounts', 'DesignerNotes'],
   endpoints: (builder) => ({
     login: builder.mutation({
       query: (credentials) => ({
@@ -165,6 +165,10 @@ export const apiSlice = createApi({
       query: () => '/admin/settings',
       providesTags: ['Settings'],
     }),
+    // Public endpoint for non-admin users to access capacity and date range settings
+    getPublicSettings: builder.query<any[], void>({
+      query: () => '/settings/public',
+    }),
     updateSystemSettings: builder.mutation<any, any[]>({
         query: (settings) => ({
           url: '/admin/settings',
@@ -280,6 +284,39 @@ export const apiSlice = createApi({
         }),
         invalidatesTags: ['Notifications'],
     }),
+
+    // Designer Notes endpoints - Only accessible to designers
+    getDesignerNotesForRequest: builder.query<any[], number>({
+        query: (requestId) => `/designernotes/request/${requestId}`,
+        providesTags: (result, error, requestId) => [{ type: 'DesignerNotes', id: requestId }],
+    }),
+    getDesignerNoteById: builder.query<any, number>({
+        query: (noteId) => `/designernotes/${noteId}`,
+        providesTags: (result, error, noteId) => [{ type: 'DesignerNotes', id: noteId }],
+    }),
+    createDesignerNote: builder.mutation<any, { requestId: number; noteText: string }>({
+        query: ({ requestId, noteText }) => ({
+            url: `/designernotes/request/${requestId}`,
+            method: 'POST',
+            body: { noteText },
+        }),
+        invalidatesTags: (result, error, { requestId }) => [{ type: 'DesignerNotes', id: requestId }],
+    }),
+    updateDesignerNote: builder.mutation<any, { noteId: number; noteText: string }>({
+        query: ({ noteId, noteText }) => ({
+            url: `/designernotes/${noteId}`,
+            method: 'PUT',
+            body: { noteText },
+        }),
+        invalidatesTags: (result, error, { noteId }) => [{ type: 'DesignerNotes', id: noteId }],
+    }),
+    deleteDesignerNote: builder.mutation<void, number>({
+        query: (noteId) => ({
+            url: `/designernotes/${noteId}`,
+            method: 'DELETE',
+        }),
+        invalidatesTags: ['DesignerNotes'],
+    }),
   }),
 });
 
@@ -303,6 +340,7 @@ export const {
     useGetUsersWithRolesQuery,
     useUpdateUserRolesMutation,
     useGetSystemSettingsQuery,
+    useGetPublicSettingsQuery,
     useUpdateSystemSettingsMutation,
     useGetDesignersQuery,
     useGetLookupsQuery,
@@ -324,4 +362,9 @@ export const {
     useMarkAllAsReadMutation,
     useGetInboxCountsQuery,
     useMarkInboxAsViewedMutation,
+    useGetDesignerNotesForRequestQuery,
+    useGetDesignerNoteByIdQuery,
+    useCreateDesignerNoteMutation,
+    useUpdateDesignerNoteMutation,
+    useDeleteDesignerNoteMutation,
 } = apiSlice;

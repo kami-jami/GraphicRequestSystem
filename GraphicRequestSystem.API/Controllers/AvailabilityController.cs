@@ -29,10 +29,13 @@ namespace GraphicRequestSystem.API.Controllers
             var maxUrgent = int.Parse(settings.GetValueOrDefault("MaxUrgentRequestsPerDay", "2"));
 
             // 2. Get request counts grouped by date and priority
+            // Only count active requests that occupy capacity (exclude Completed)
             var requestCounts = await _context.Requests
-            // ابتدا چک می‌کنیم که DueDate مقدار داشته باشد، سپس روی مقدار آن فیلتر می‌کنیم
-            .Where(r => r.DueDate.HasValue && r.DueDate.Value.Date >= startDate.Date && r.DueDate.Value.Date <= endDate.Date)
-            .GroupBy(r => new { Date = r.DueDate.Value.Date, r.Priority }) // اینجا هم از .Value استفاده می‌کنیم
+            .Where(r => r.DueDate.HasValue && 
+                       r.DueDate.Value.Date >= startDate.Date && 
+                       r.DueDate.Value.Date <= endDate.Date &&
+                       r.Status != RequestStatus.Completed) // Exclude completed requests
+            .GroupBy(r => new { Date = r.DueDate.Value.Date, r.Priority })
             .Select(g => new
             {
                 g.Key.Date,
@@ -56,7 +59,11 @@ namespace GraphicRequestSystem.API.Controllers
                 {
                     Date = day,
                     IsNormalSlotAvailable = normalCount < maxNormal,
-                    IsUrgentSlotAvailable = urgentCount < maxUrgent
+                    IsUrgentSlotAvailable = urgentCount < maxUrgent,
+                    NormalSlotsUsed = normalCount,
+                    NormalSlotsTotal = maxNormal,
+                    UrgentSlotsUsed = urgentCount,
+                    UrgentSlotsTotal = maxUrgent
                 });
             }
 

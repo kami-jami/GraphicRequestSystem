@@ -12,6 +12,8 @@ using Microsoft.EntityFrameworkCore.Migrations;
 using System.Security.Claims;
 using GraphicRequestSystem.API.Helpers;
 using GraphicRequestSystem.API.Core.Interfaces;
+using Microsoft.AspNetCore.SignalR;
+using GraphicRequestSystem.API.Hubs;
 
 namespace GraphicRequestSystem.API.Controllers
 {
@@ -24,17 +26,20 @@ namespace GraphicRequestSystem.API.Controllers
         private readonly RequestDetailStrategyFactory _strategyFactory;
         private readonly UserManager<AppUser> _userManager;
         private readonly INotificationService _notificationService;
+        private readonly IHubContext<NotificationHub> _hubContext;
 
         public RequestsController(
             AppDbContext context,
             RequestDetailStrategyFactory strategyFactory,
             UserManager<AppUser> userManager,
-            INotificationService notificationService)
+            INotificationService notificationService,
+            IHubContext<NotificationHub> hubContext)
         {
             _context = context;
             _strategyFactory = strategyFactory;
             _userManager = userManager;
             _notificationService = notificationService;
+            _hubContext = hubContext;
         }
 
         // GET: api/Requests
@@ -361,7 +366,7 @@ namespace GraphicRequestSystem.API.Controllers
             var requestTypeItem = await _context.LookupItems.FindAsync(requestDto.RequestTypeId);
             if (requestTypeItem == null)
             {
-                return BadRequest("Invalid Request Type ID.");
+                return BadRequest(new { message = "Invalid Request Type ID." });
             }
             if (string.IsNullOrEmpty(requesterId))
             {
@@ -373,15 +378,19 @@ namespace GraphicRequestSystem.API.Controllers
                 var settings = await _context.SystemSettings.ToDictionaryAsync(s => s.SettingKey, s => s.SettingValue);
                 var dateToCheck = requestDto.DueDate.Value.Date;
 
+                // Only count active requests that occupy capacity (exclude Completed)
                 var requestCountForDay = await _context.Requests
-                    .CountAsync(r => r.DueDate.HasValue && r.DueDate.Value.Date == dateToCheck && r.Priority == requestDto.Priority);
+                    .CountAsync(r => r.DueDate.HasValue && 
+                                   r.DueDate.Value.Date == dateToCheck && 
+                                   r.Priority == requestDto.Priority &&
+                                   r.Status != RequestStatus.Completed); // Exclude completed requests
 
                 if (requestDto.Priority == RequestPriority.Normal)
                 {
                     var maxNormal = int.Parse(settings.GetValueOrDefault("MaxNormalRequestsPerDay", "5"));
                     if (requestCountForDay >= maxNormal)
                     {
-                        return BadRequest("ظرفیت ثبت درخواست عادی برای این روز تکمیل شده است.");
+                        return BadRequest(new { message = "ظرفیت ثبت درخواست عادی برای این روز تکمیل شده است." });
                     }
                 }
                 else if (requestDto.Priority == RequestPriority.Urgent)
@@ -389,7 +398,7 @@ namespace GraphicRequestSystem.API.Controllers
                     var maxUrgent = int.Parse(settings.GetValueOrDefault("MaxUrgentRequestsPerDay", "2"));
                     if (requestCountForDay >= maxUrgent)
                     {
-                        return BadRequest("ظرفیت ثبت درخواست فوری برای این روز تکمیل شده است.");
+                        return BadRequest(new { message = "ظرفیت ثبت درخواست فوری برای این روز تکمیل شده است." });
                     }
                 }
             }
@@ -402,7 +411,7 @@ namespace GraphicRequestSystem.API.Controllers
                 //var requestTypeItem = await _context.LookupItems.FindAsync(requestDto.RequestTypeId);
                 if (requestTypeItem == null)
                 {
-                    return BadRequest("Invalid Request Type ID.");
+                    return BadRequest(new { message = "Invalid Request Type ID." });
                 }
 
                 var defaultDesignerId = (await _context.SystemSettings
@@ -410,7 +419,7 @@ namespace GraphicRequestSystem.API.Controllers
 
                 if (string.IsNullOrEmpty(defaultDesignerId))
                 {
-                    return StatusCode(500, "Default designer is not configured in system settings.");
+                    return StatusCode(500, new { message = "Default designer is not configured in system settings." });
                 }
 
 
@@ -504,6 +513,9 @@ namespace GraphicRequestSystem.API.Controllers
                     // Send inbox update to default designer
                     await _notificationService.SendInboxUpdateAsync(defaultDesignerId);
                 }
+
+                // Broadcast capacity update to all users viewing the date picker
+                await BroadcastCapacityUpdateAsync(newRequest.DueDate);
 
                 return Ok(newRequest);
             }
@@ -1269,6 +1281,9 @@ namespace GraphicRequestSystem.API.Controllers
             if (request == null) return NotFound();
             if (request.RequesterId != requesterId) return Forbid();
 
+            // Store old due date to check if it changed
+            var oldDueDate = request.DueDate;
+
             using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
@@ -1349,6 +1364,15 @@ namespace GraphicRequestSystem.API.Controllers
 
                 await _context.SaveChangesAsync();
                 await transaction.CommitAsync();
+                
+                // Broadcast capacity update if due date changed
+                if (oldDueDate != request.DueDate)
+                {
+                    // Update both old and new dates
+                    await BroadcastCapacityUpdateAsync(oldDueDate);
+                    await BroadcastCapacityUpdateAsync(request.DueDate);
+                }
+                
                 return Ok(request);
             }
             catch (Exception ex)
@@ -1404,6 +1428,19 @@ namespace GraphicRequestSystem.API.Controllers
             }
 
             return Ok(request);
+        }
+
+        // Helper method to broadcast capacity update via SignalR
+        private async Task BroadcastCapacityUpdateAsync(DateTime? dueDate)
+        {
+            if (!dueDate.HasValue) return;
+
+            // Broadcast to all connected users that capacity has changed
+            await _hubContext.Clients.All.SendAsync("CapacityUpdated", new
+            {
+                Date = dueDate.Value.Date,
+                Timestamp = DateTime.UtcNow
+            });
         }
     }
 }

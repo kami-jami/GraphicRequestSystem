@@ -42,6 +42,7 @@ import { selectCurrentUser } from './auth/authSlice';
 import { useSelector } from 'react-redux';
 import PageHeader from '../components/PageHeader';
 import { DetailSkeleton, CardSkeleton } from '../components/LoadingSkeletons';
+import DesignerNotes from '../components/request-details/DesignerNotes';
 
 // Icons
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
@@ -76,8 +77,7 @@ const STATUS_CONFIG: Record<number, {
 
 const PRIORITY_CONFIG: Record<number, { label: string; color: string; icon: React.ReactNode }> = {
     0: { label: 'عادی', color: '#64748b', icon: <FlagIcon /> },
-    1: { label: 'متوسط', color: '#f59e0b', icon: <FlagIcon /> },
-    2: { label: 'فوری', color: '#ef4444', icon: <PriorityHighIcon /> },
+    1: { label: 'فوری', color: '#ef4444', icon: <PriorityHighIcon /> },
 };
 
 // Workflow steps
@@ -698,6 +698,13 @@ const RequestDetailPage = () => {
                     )}
                 </Box>
             </Paper>
+
+            {/* Designer Notes - Only visible to designers assigned to the request */}
+            {!isApproverView && user?.roles?.includes('Designer') && (
+                <Box sx={{ mt: 3 }}>
+                    <DesignerNotes requestId={requestId} />
+                </Box>
+            )}
 
             {/* Actions - Sticky Bottom for Non-Approver */}
             {!isApproverView && hasActions && (

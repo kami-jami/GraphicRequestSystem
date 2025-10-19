@@ -52,8 +52,7 @@ const STATUS_CONFIG: Record<number, { label: string; color: 'default' | 'info' |
 
 const PRIORITY_CONFIG: Record<number, { label: string; color: string; icon: React.ReactNode }> = {
     0: { label: 'عادی', color: '#64748b', icon: <FlagIcon fontSize="small" /> },
-    1: { label: 'متوسط', color: '#f59e0b', icon: <FlagIcon fontSize="small" /> },
-    2: { label: 'فوری', color: '#ef4444', icon: <PriorityHighIcon fontSize="small" /> },
+    1: { label: 'فوری', color: '#ef4444', icon: <PriorityHighIcon fontSize="small" /> },
 };
 
 const getWorklistTitle = (statuses: string[]): string => {

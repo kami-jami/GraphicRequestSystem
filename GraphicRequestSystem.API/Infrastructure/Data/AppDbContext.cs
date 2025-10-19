@@ -30,6 +30,7 @@ namespace GraphicRequestSystem.API.Infrastructure.Data
         public DbSet<MiscellaneousDetail> MiscellaneousDetails { get; set; }
         public DbSet<Notification> Notifications { get; set; }
         public DbSet<InboxView> InboxViews { get; set; }
+        public DbSet<DesignerNote> DesignerNotes { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -166,6 +167,23 @@ namespace GraphicRequestSystem.API.Infrastructure.Data
             modelBuilder.Entity<InboxView>()
                 .HasIndex(iv => new { iv.UserId, iv.InboxCategory })
                 .IsUnique();
+
+            // DesignerNote configuration
+            modelBuilder.Entity<DesignerNote>()
+                .HasOne(dn => dn.Designer)
+                .WithMany()
+                .HasForeignKey(dn => dn.DesignerId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<DesignerNote>()
+                .HasOne(dn => dn.Request)
+                .WithMany()
+                .HasForeignKey(dn => dn.RequestId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Index for faster querying of designer notes
+            modelBuilder.Entity<DesignerNote>()
+                .HasIndex(dn => new { dn.RequestId, dn.DesignerId, dn.IsDeleted });
         }
     }
 }
