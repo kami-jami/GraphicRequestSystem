@@ -36,6 +36,7 @@ import ViewListIcon from '@mui/icons-material/ViewList';
 import ViewModuleIcon from '@mui/icons-material/ViewModule';
 import SortIcon from '@mui/icons-material/Sort';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
+import RefreshIcon from '@mui/icons-material/Refresh';
 import PageHeader from '../components/PageHeader';
 import EmptyState from '../components/EmptyState';
 
@@ -69,6 +70,20 @@ const getWorklistTitle = (statuses: string[]): string => {
     return titles[statusStr] || 'همه درخواست‌ها';
 };
 
+// Map status combinations to inbox categories
+const getInboxCategory = (statuses: number[]): string | undefined => {
+    const statusStr = statuses.sort().join(',');
+    const categoryMap: Record<string, string> = {
+        '0,1': 'requester_underReview',
+        '2': 'requester_needsRevision',
+        '1,5': 'designer_pendingAction',
+        '3': 'designer_inProgress',
+        '4': 'designer_pendingApproval',
+        '3,5': 'designer_inProgress',
+    };
+    return categoryMap[statusStr];
+};
+
 const RequestsListPage = () => {
     const navigate = useNavigate();
     const theme = useTheme();
@@ -84,6 +99,20 @@ const RequestsListPage = () => {
     const [filterAnchorEl, setFilterAnchorEl] = useState<null | HTMLElement>(null);
     const [sortAnchorEl, setSortAnchorEl] = useState<null | HTMLElement>(null);
     const [sortBy, setSortBy] = useState<'date' | 'priority' | 'status'>('date');
+    const [viewedRequests, setViewedRequests] = useState<Set<number>>(new Set());
+
+    // Load viewed requests from localStorage on mount
+    useEffect(() => {
+        const stored = localStorage.getItem('viewedRequests');
+        if (stored) {
+            try {
+                const parsed = JSON.parse(stored);
+                setViewedRequests(new Set(parsed));
+            } catch (e) {
+                console.error('Failed to parse viewed requests:', e);
+            }
+        }
+    }, []);
 
     useEffect(() => {
         const statusesFromUrl = searchParams.getAll('statuses');
@@ -94,10 +123,34 @@ const RequestsListPage = () => {
         setPageTitle(getWorklistTitle(statusesFromUrl));
     }, [searchParams]);
 
-    const { data: requests, isLoading } = useGetRequestsQuery({
+    // Mark request as viewed and save to localStorage
+    const markRequestAsViewed = (requestId: number) => {
+        setViewedRequests(prev => {
+            const updated = new Set(prev);
+            updated.add(requestId);
+            // Save to localStorage
+            localStorage.setItem('viewedRequests', JSON.stringify(Array.from(updated)));
+            return updated;
+        });
+    };
+
+    // Handle request click
+    const handleRequestClick = (requestId: number) => {
+        markRequestAsViewed(requestId);
+        navigate(`/requests/${requestId}`);
+    };
+
+    const inboxCategory = getInboxCategory(statusFilter);
+
+    const { data: requests, isLoading, refetch, isFetching } = useGetRequestsQuery({
         statuses: statusFilter,
         searchTerm: searchTerm,
+        inboxCategory: inboxCategory,
     });
+
+    const handleRefresh = async () => {
+        await refetch();
+    };
 
     const handleStatusFilterChange = (value: number[]) => {
         const newParams = new URLSearchParams(searchParams);
@@ -114,8 +167,17 @@ const RequestsListPage = () => {
         handleStatusFilterChange(newFilter);
     };
 
-    // Sort and filter requests
+    // Sort and filter requests (keep unread items at top)
     const sortedRequests = requests ? [...requests].sort((a, b) => {
+        // Check if request is truly unread (backend says unread AND not viewed locally)
+        const aIsUnread = a.isUnread && !viewedRequests.has(a.id);
+        const bIsUnread = b.isUnread && !viewedRequests.has(b.id);
+
+        // Always keep unread items at the top
+        if (aIsUnread && !bIsUnread) return -1;
+        if (!aIsUnread && bIsUnread) return 1;
+
+        // Then apply secondary sorting
         switch (sortBy) {
             case 'priority':
                 return (b.priority || 0) - (a.priority || 0);
@@ -123,7 +185,7 @@ const RequestsListPage = () => {
                 return (a.status || 0) - (b.status || 0);
             case 'date':
             default:
-                return new Date(b.submissionDate).getTime() - new Date(a.submissionDate).getTime();
+                return new Date(b.submissionDate || b.dueDate).getTime() - new Date(a.submissionDate || a.dueDate).getTime();
         }
     }) : [];
 
@@ -210,6 +272,37 @@ const RequestsListPage = () => {
                                 >
                                     مرتب‌سازی
                                 </Button>
+                            </Tooltip>
+
+                            {/* Refresh Button */}
+                            <Tooltip title="بازخوانی لیست">
+                                <IconButton
+                                    color="primary"
+                                    onClick={handleRefresh}
+                                    disabled={isFetching}
+                                    sx={{
+                                        border: '1px solid',
+                                        borderColor: 'divider',
+                                        borderRadius: 2,
+                                        '&:hover': {
+                                            borderColor: 'primary.main',
+                                            backgroundColor: alpha(theme.palette.primary.main, 0.04),
+                                        },
+                                        '&.Mui-disabled': {
+                                            borderColor: 'divider',
+                                        }
+                                    }}
+                                >
+                                    <RefreshIcon
+                                        sx={{
+                                            animation: isFetching ? 'spin 1s linear infinite' : 'none',
+                                            '@keyframes spin': {
+                                                '0%': { transform: 'rotate(0deg)' },
+                                                '100%': { transform: 'rotate(360deg)' }
+                                            }
+                                        }}
+                                    />
+                                </IconButton>
                             </Tooltip>
 
                             {/* View Mode Toggle */}
@@ -435,9 +528,12 @@ const RequestsListPage = () => {
                             {paginatedRequests.map((request, index) => (
                                 <RequestTableRow
                                     key={request.id}
-                                    request={request}
+                                    request={{
+                                        ...request,
+                                        isUnread: request.isUnread && !viewedRequests.has(request.id)
+                                    }}
                                     isLast={index === paginatedRequests.length - 1}
-                                    onClick={() => navigate(`/requests/${request.id}`)}
+                                    onClick={() => handleRequestClick(request.id)}
                                 />
                             ))}
                         </Box>
@@ -446,7 +542,14 @@ const RequestsListPage = () => {
             ) : (
                 <Stack spacing={2}>
                     {paginatedRequests.map((request) => (
-                        <RequestListItem key={request.id} request={request} onClick={() => navigate(`/requests/${request.id}`)} />
+                        <RequestListItem
+                            key={request.id}
+                            request={{
+                                ...request,
+                                isUnread: request.isUnread && !viewedRequests.has(request.id)
+                            }}
+                            onClick={() => handleRequestClick(request.id)}
+                        />
                     ))}
                 </Stack>
             )}
@@ -475,6 +578,7 @@ const RequestTableRow = ({ request, isLast, onClick }: { request: any; isLast: b
     const statusConfig = STATUS_CONFIG[request.status] || STATUS_CONFIG[0];
     const priorityConfig = PRIORITY_CONFIG[request.priority || 0];
     const isOverdue = request.dueDate && new Date(request.dueDate) < new Date() && request.status !== 6;
+    const isUnread = request.isUnread || false;
 
     return (
         <Box
@@ -488,9 +592,11 @@ const RequestTableRow = ({ request, isLast, onClick }: { request: any; isLast: b
                 cursor: 'pointer',
                 borderBottom: isLast ? 'none' : '1px solid',
                 borderColor: 'divider',
+                bgcolor: isUnread ? alpha(theme.palette.info.main, 0.08) : 'transparent',
+                borderRight: isUnread ? `3px solid ${theme.palette.info.main}` : 'none',
                 transition: 'all 0.2s ease',
                 '&:hover': {
-                    bgcolor: alpha(theme.palette.primary.main, 0.02),
+                    bgcolor: isUnread ? alpha(theme.palette.info.main, 0.12) : alpha(theme.palette.primary.main, 0.02),
                     '& .view-icon': {
                         opacity: 1,
                         transform: 'translateX(-4px)',
@@ -499,16 +605,31 @@ const RequestTableRow = ({ request, isLast, onClick }: { request: any; isLast: b
             }}
         >
             {/* ID */}
-            <Chip
-                label={`#${request.id}`}
-                size="small"
-                sx={{
-                    bgcolor: alpha(theme.palette.primary.main, 0.1),
-                    color: 'primary.main',
-                    fontWeight: 700,
-                    fontSize: '0.75rem',
-                }}
-            />
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <Chip
+                    label={`#${request.id}`}
+                    size="small"
+                    sx={{
+                        bgcolor: alpha(theme.palette.primary.main, 0.1),
+                        color: 'primary.main',
+                        fontWeight: 700,
+                        fontSize: '0.75rem',
+                    }}
+                />
+                {isUnread && (
+                    <Chip
+                        label="جدید"
+                        size="small"
+                        sx={{
+                            bgcolor: theme.palette.info.main,
+                            color: 'white',
+                            fontWeight: 700,
+                            fontSize: '0.65rem',
+                            height: 18,
+                        }}
+                    />
+                )}
+            </Box>
 
             {/* Title */}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
@@ -758,6 +879,7 @@ const RequestListItem = ({ request, onClick }: { request: any; onClick: () => vo
     const statusConfig = STATUS_CONFIG[request.status] || STATUS_CONFIG[0];
     const priorityConfig = PRIORITY_CONFIG[request.priority || 0];
     const isOverdue = request.dueDate && new Date(request.dueDate) < new Date() && request.status !== 6;
+    const isUnread = request.isUnread || false;
 
     return (
         <Paper
@@ -768,10 +890,14 @@ const RequestListItem = ({ request, onClick }: { request: any; onClick: () => vo
                 cursor: 'pointer',
                 transition: 'all 0.2s ease',
                 border: '1px solid',
-                borderColor: 'divider',
+                borderColor: isUnread ? 'info.main' : 'divider',
+                bgcolor: isUnread ? alpha(theme.palette.info.main, 0.05) : 'background.paper',
+                borderRight: isUnread ? `4px solid ${theme.palette.info.main}` : 'none',
                 '&:hover': {
-                    borderColor: 'primary.main',
-                    boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.1)}`,
+                    borderColor: isUnread ? 'info.dark' : 'primary.main',
+                    boxShadow: isUnread
+                        ? `0 4px 12px ${alpha(theme.palette.info.main, 0.2)}`
+                        : `0 4px 12px ${alpha(theme.palette.primary.main, 0.1)}`,
                     transform: 'translateX(-4px)',
                 }
             }}
@@ -793,10 +919,23 @@ const RequestListItem = ({ request, onClick }: { request: any; onClick: () => vo
                 {/* Main Content */}
                 <Box sx={{ flex: 1, minWidth: 0 }}>
                     <Stack spacing={1}>
-                        <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
+                        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
                             <Typography variant="subtitle1" fontWeight={700} sx={{ flex: 1, minWidth: 200 }}>
                                 {request.title}
                             </Typography>
+                            {isUnread && (
+                                <Chip
+                                    label="جدید"
+                                    size="small"
+                                    sx={{
+                                        bgcolor: theme.palette.info.main,
+                                        color: 'white',
+                                        fontWeight: 700,
+                                        fontSize: '0.7rem',
+                                        height: 20,
+                                    }}
+                                />
+                            )}
                             <Chip
                                 label={statusConfig.label}
                                 size="small"

@@ -5,6 +5,7 @@ import type { RootState } from './store';
 interface GetRequestsParams {
   statuses?: number[];
   searchTerm?: string;
+  inboxCategory?: string;
 }
 
 interface GetReportParams {
@@ -59,7 +60,7 @@ export const apiSlice = createApi({
         method: 'POST',
         body: requestData,
       }),
-      invalidatesTags: ['Request', 'InboxCounts'],
+      invalidatesTags: [{ type: 'Request', id: 'LIST' }, 'InboxCounts'],
     }),
     // ... تمام endpoint های دیگر شما ...
     getDashboardStats: builder.query<any, void>({ query: () => '/requests/dashboard-stats' }),
@@ -72,9 +73,17 @@ export const apiSlice = createApi({
             }
             if (params.searchTerm)
               queryParams.append('searchTerm', params.searchTerm);
+            if (params.inboxCategory)
+              queryParams.append('inboxCategory', params.inboxCategory);
             return `/requests?${queryParams.toString()}`;
         },
-        providesTags: ['Request'],
+        providesTags: (result) => 
+            result
+                ? [
+                    ...result.map(({ id }) => ({ type: 'Request' as const, id })),
+                    { type: 'Request', id: 'LIST' }
+                  ]
+                : [{ type: 'Request', id: 'LIST' }],
     }),
     getRequestById: builder.query<any, number>({ query: (id) => `/requests/${id}`, providesTags: (result, error, id) => [{ type: 'Request', id }] }),
     getInboxCounts: builder.query<Record<string, number>, void>({ 
@@ -88,24 +97,37 @@ export const apiSlice = createApi({
         body: JSON.stringify(inboxCategory),
         headers: { 'Content-Type': 'application/json' }
       }),
-      invalidatesTags: ['InboxCounts']
+      invalidatesTags: [{ type: 'Request', id: 'LIST' }, 'InboxCounts']
     }),
     getLookupLists: builder.query<string[], void>({ query: () => '/lookup' }),
     getRequestComments: builder.query<any[], number>({ query: (id) => `/requests/${id}/comments`, providesTags: ['Comments'] }),
     addComment: builder.mutation<any, { requestId: number; content: string }>({ 
         query: ({ requestId, content }) => ({ url: `/requests/${requestId}/comments`, method: 'POST', body: { content } }), 
-        invalidatesTags: ['Comments', 'Request', 'InboxCounts'] 
+        invalidatesTags: (result, error, arg) => [
+            'Comments', 
+            { type: 'Request', id: arg.requestId },
+            { type: 'Request', id: 'LIST' },
+            'InboxCounts'
+        ]
     }),
     assignRequest: builder.mutation<any, { requestId: number; designerId: string }>({ 
         query: ({ requestId, designerId }) => ({ url: `/requests/${requestId}/assign`, method: 'PATCH', body: { designerId } }), 
-        invalidatesTags: (result, error, arg) => [{ type: 'Request', id: arg.requestId }, 'Request', 'InboxCounts'] 
+        invalidatesTags: (result, error, arg) => [
+            { type: 'Request', id: arg.requestId }, 
+            { type: 'Request', id: 'LIST' },
+            'InboxCounts'
+        ] 
     }),
     startDesign: builder.mutation<any, { requestId: number }>({
         query: ({ requestId }) => ({
             url: `/requests/${requestId}/start-design`,
             method: 'PATCH',
         }),
-        invalidatesTags: (result, error, arg) => [{ type: 'Request', id: arg.requestId }, 'Request', 'InboxCounts'],
+        invalidatesTags: (result, error, arg) => [
+            { type: 'Request', id: arg.requestId }, 
+            { type: 'Request', id: 'LIST' },
+            'InboxCounts'
+        ],
     }),
     returnRequest: builder.mutation<any, FormData>({
         query: (formData) => ({
@@ -115,7 +137,7 @@ export const apiSlice = createApi({
         }),
         invalidatesTags: (result, error, arg) => [
             { type: 'Request', id: Number(arg.get('requestId')) },
-            'Request', // Invalidate general tag to refresh inbox counts
+            { type: 'Request', id: 'LIST' },
             'InboxCounts'
         ],
     }),
@@ -128,7 +150,11 @@ export const apiSlice = createApi({
               body: formData,
           };
       },
-      invalidatesTags: (result, error, arg) => [{ type: 'Request', id: Number(arg.get('requestId')) }, 'Request', 'InboxCounts'],
+      invalidatesTags: (result, error, arg) => [
+          { type: 'Request', id: Number(arg.get('requestId')) }, 
+          { type: 'Request', id: 'LIST' },
+          'InboxCounts'
+      ],
     }),
     processApproval: builder.mutation<any, FormData>({
         query: (formData) => ({
@@ -136,15 +162,27 @@ export const apiSlice = createApi({
             method: 'PATCH',
             body: formData,
         }),
-        invalidatesTags: (result, error, arg) => [{ type: 'Request', id: Number(arg.get('requestId')) }, 'Request', 'InboxCounts'],
+        invalidatesTags: (result, error, arg) => [
+            { type: 'Request', id: Number(arg.get('requestId')) }, 
+            { type: 'Request', id: 'LIST' },
+            'InboxCounts'
+        ],
     }),
     resubmitRequest: builder.mutation<any, { requestId: number }>({ 
         query: ({ requestId }) => ({ url: `/requests/${requestId}/resubmit`, method: 'PATCH', }), 
-        invalidatesTags: (result, error, arg) => [{ type: 'Request', id: arg.requestId }, 'Request', 'InboxCounts'] 
+        invalidatesTags: (result, error, arg) => [
+            { type: 'Request', id: arg.requestId }, 
+            { type: 'Request', id: 'LIST' },
+            'InboxCounts'
+        ] 
     }),
     resubmitForApproval: builder.mutation<any, { requestId: number }>({ 
         query: ({ requestId }) => ({ url: `/requests/${requestId}/resubmit-for-approval`, method: 'PATCH', }), 
-        invalidatesTags: (result, error, arg) => [{ type: 'Request', id: arg.requestId }, 'Request', 'InboxCounts'] 
+        invalidatesTags: (result, error, arg) => [
+            { type: 'Request', id: arg.requestId }, 
+            { type: 'Request', id: 'LIST' },
+            'InboxCounts'
+        ] 
     }),
     getAvailability: builder.query<any[], { startDate: string; endDate: string }>({ query: ({ startDate, endDate }) => `/availability?startDate=${startDate}&endDate=${endDate}` }),
     getUsersWithRoles: builder.query<any[], void>({
@@ -225,7 +263,11 @@ export const apiSlice = createApi({
             method: 'PUT',
             body: data,
         }),
-        invalidatesTags: (result, error, arg) => [{ type: 'Request', id: arg.requestId }],
+        invalidatesTags: (result, error, arg) => [
+            { type: 'Request', id: arg.requestId },
+            { type: 'Request', id: 'LIST' },
+            'InboxCounts'
+        ],
     }),
     createUser: builder.mutation<any, any>({
         query: (newUser) => ({

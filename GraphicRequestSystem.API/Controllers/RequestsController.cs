@@ -44,7 +44,7 @@ namespace GraphicRequestSystem.API.Controllers
 
         // GET: api/Requests
         [HttpGet]
-        public async Task<IActionResult> GetRequests([FromQuery] int[]? statuses, [FromQuery] string? searchTerm)
+        public async Task<IActionResult> GetRequests([FromQuery] int[]? statuses, [FromQuery] string? searchTerm, [FromQuery] string? inboxCategory)
         {
             var userId = User.FindFirstValue("id");
             if (string.IsNullOrEmpty(userId))
@@ -53,6 +53,16 @@ namespace GraphicRequestSystem.API.Controllers
             }
             var currentUser = await _userManager.FindByIdAsync(userId);
             var userRoles = await _userManager.GetRolesAsync(currentUser);
+
+            // --- Get last viewed timestamp for inbox category ---
+            DateTime? lastViewedAt = null;
+            if (!string.IsNullOrEmpty(inboxCategory))
+            {
+                var lastView = await _context.InboxViews
+                    .Where(iv => iv.UserId == userId && iv.InboxCategory == inboxCategory)
+                    .FirstOrDefaultAsync();
+                lastViewedAt = lastView?.LastViewedAt;
+            }
 
             // --- 2. ایجاد کوئری پایه ---
             var query = _context.Requests.AsQueryable();
@@ -93,22 +103,10 @@ namespace GraphicRequestSystem.API.Controllers
                 );
             }
 
-            // --- 5. اعمال مرتب‌سازی ---
-            if (userRoles.Contains("Designer"))
-            {
-                // برای طراح: بر اساس نزدیک‌ترین تاریخ تحویل
-                query = query.OrderBy(r => r.DueDate);
-            }
-            else
-            {
-                // برای سایرین: بر اساس جدیدترین درخواست ثبت شده
-                query = query.OrderByDescending(r => r.SubmissionDate);
-            }
-
-            // --- 6. انتخاب فیلدهای نهایی و اجرای کوئری ---
+            // --- 5. انتخاب فیلدهای نهایی و اجرای کوئری (بدون مرتب‌سازی در دیتابیس) ---
             var requests = await query
-                .Include(r => r.Requester) // Include برای دسترسی به نام درخواست‌دهنده لازم است
-                .Include(r => r.RequestType) // Include برای دسترسی به نوع درخواست
+                .Include(r => r.Requester)
+                .Include(r => r.RequestType)
                 .Select(r => new
                 {
                     r.Id,
@@ -119,12 +117,50 @@ namespace GraphicRequestSystem.API.Controllers
                         ? r.Requester.FirstName + " " + r.Requester.LastName
                         : r.Requester.UserName,
                     RequesterUsername = r.Requester.UserName,
-                    RequestTypeName = r.RequestType.Value, // اضافه کردن نام نوع درخواست
-                    r.DueDate
+                    RequestTypeName = r.RequestType.Value,
+                    r.DueDate,
+                    r.SubmissionDate,
+                    LatestHistoryDate = _context.RequestHistories
+                        .Where(h => h.RequestId == r.Id)
+                        .Max(h => (DateTime?)h.ActionDate)
                 })
                 .ToListAsync();
 
-            return Ok(requests);
+            // --- 6. محاسبه IsUnread و مرتب‌سازی در حافظه ---
+            var requestsWithUnread = requests.Select(r => new
+            {
+                r.Id,
+                r.Title,
+                r.Status,
+                r.Priority,
+                r.RequesterName,
+                r.RequesterUsername,
+                r.RequestTypeName,
+                r.DueDate,
+                IsUnread = lastViewedAt.HasValue
+                    ? (r.SubmissionDate > lastViewedAt.Value || (r.LatestHistoryDate.HasValue && r.LatestHistoryDate.Value > lastViewedAt.Value))
+                    : false
+            }).ToList();
+
+            // مرتب‌سازی: ابتدا unread ها، سپس بقیه
+            if (userRoles.Contains("Designer"))
+            {
+                // برای طراح: ابتدا unread ها بر اساس نزدیک‌ترین تاریخ، سپس بقیه
+                requestsWithUnread = requestsWithUnread
+                    .OrderByDescending(r => r.IsUnread)
+                    .ThenBy(r => r.DueDate)
+                    .ToList();
+            }
+            else
+            {
+                // برای سایرین: ابتدا unread ها بر اساس جدیدترین، سپس بقیه
+                requestsWithUnread = requestsWithUnread
+                    .OrderByDescending(r => r.IsUnread)
+                    .ThenByDescending(r => r.DueDate)
+                    .ToList();
+            }
+
+            return Ok(requestsWithUnread);
         }
 
         // GET: api/Requests/inbox-counts
@@ -380,8 +416,8 @@ namespace GraphicRequestSystem.API.Controllers
 
                 // Only count active requests that occupy capacity (exclude Completed)
                 var requestCountForDay = await _context.Requests
-                    .CountAsync(r => r.DueDate.HasValue && 
-                                   r.DueDate.Value.Date == dateToCheck && 
+                    .CountAsync(r => r.DueDate.HasValue &&
+                                   r.DueDate.Value.Date == dateToCheck &&
                                    r.Priority == requestDto.Priority &&
                                    r.Status != RequestStatus.Completed); // Exclude completed requests
 
@@ -1364,7 +1400,7 @@ namespace GraphicRequestSystem.API.Controllers
 
                 await _context.SaveChangesAsync();
                 await transaction.CommitAsync();
-                
+
                 // Broadcast capacity update if due date changed
                 if (oldDueDate != request.DueDate)
                 {
@@ -1372,7 +1408,7 @@ namespace GraphicRequestSystem.API.Controllers
                     await BroadcastCapacityUpdateAsync(oldDueDate);
                     await BroadcastCapacityUpdateAsync(request.DueDate);
                 }
-                
+
                 return Ok(request);
             }
             catch (Exception ex)
