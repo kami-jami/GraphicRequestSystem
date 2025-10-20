@@ -99,6 +99,7 @@ const RequestsListPage = () => {
     // Filter states
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState<number[]>([]);
+    const [actionRequiredOnly, setActionRequiredOnly] = useState(false);
     const [filterAnchorEl, setFilterAnchorEl] = useState<null | HTMLElement>(null);
     const [sortAnchorEl, setSortAnchorEl] = useState<null | HTMLElement>(null);
     const [sortBy, setSortBy] = useState<'date' | 'priority' | 'status'>('date');
@@ -107,10 +108,12 @@ const RequestsListPage = () => {
         const statusesFromUrl = searchParams.getAll('statuses');
         const searchTermFromUrl = searchParams.get('searchTerm') || '';
         const inboxTypeFromUrl = searchParams.get('inboxType') as 'inbox' | 'outbox' | 'completed' | 'all' || 'all';
+        const actionRequiredOnlyFromUrl = searchParams.get('actionRequiredOnly') === 'true';
 
         setStatusFilter(statusesFromUrl.map(s => Number(s)));
         setSearchTerm(searchTermFromUrl);
         setInboxType(inboxTypeFromUrl);
+        setActionRequiredOnly(actionRequiredOnlyFromUrl);
 
         // Set page title based on inbox type and statuses
         // Check for specific status combinations first
@@ -148,6 +151,7 @@ const RequestsListPage = () => {
         statuses: statusFilter,
         searchTerm: searchTerm,
         inboxCategory: inboxCategory,
+        actionRequiredOnly: actionRequiredOnly,
     });
 
     const handleRefresh = async () => {

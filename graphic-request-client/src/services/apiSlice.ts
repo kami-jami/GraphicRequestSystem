@@ -6,6 +6,7 @@ interface GetRequestsParams {
   statuses?: number[];
   searchTerm?: string;
   inboxCategory?: string;
+  actionRequiredOnly?: boolean;
 }
 
 interface GetReportParams {
@@ -75,6 +76,8 @@ export const apiSlice = createApi({
               queryParams.append('searchTerm', params.searchTerm);
             if (params.inboxCategory)
               queryParams.append('inboxCategory', params.inboxCategory);
+            if (params.actionRequiredOnly)
+              queryParams.append('actionRequiredOnly', 'true');
             return `/requests?${queryParams.toString()}`;
         },
         providesTags: (result) => 

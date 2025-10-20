@@ -44,7 +44,11 @@ namespace GraphicRequestSystem.API.Controllers
 
         // GET: api/Requests
         [HttpGet]
-        public async Task<IActionResult> GetRequests([FromQuery] int[]? statuses, [FromQuery] string? searchTerm, [FromQuery] string? inboxCategory)
+        public async Task<IActionResult> GetRequests(
+            [FromQuery] int[]? statuses,
+            [FromQuery] string? searchTerm,
+            [FromQuery] string? inboxCategory,
+            [FromQuery] bool actionRequiredOnly = false)
         {
             var userId = User.FindFirstValue("id");
             if (string.IsNullOrEmpty(userId))
@@ -117,6 +121,9 @@ namespace GraphicRequestSystem.API.Controllers
                     r.Title,
                     r.Status,
                     r.Priority,
+                    r.RequesterId,
+                    r.DesignerId,
+                    r.ApproverId,
                     RequesterName = (r.Requester.FirstName + " " + r.Requester.LastName).Trim() != ""
                         ? r.Requester.FirstName + " " + r.Requester.LastName
                         : r.Requester.UserName,
@@ -145,12 +152,21 @@ namespace GraphicRequestSystem.API.Controllers
                 r.LatestHistoryDate,
                 // تاریخ آخرین تغییر وضعیت (یا تاریخ ثبت اگر تاریخچه‌ای وجود نداشت)
                 LastStatusChangeDate = r.LatestHistoryDate ?? r.SubmissionDate,
-                // Request is unread if:
-                // 1. User never viewed it at current status, OR
-                // 2. Last status change happened AFTER user's last view
-                IsUnread = !viewedRequestStatusMap.TryGetValue((r.Id, r.Status), out var lastViewedAt) ||
-                          (r.LatestHistoryDate ?? r.SubmissionDate) > lastViewedAt
+                // ActionRequired: Does this user need to take action at current status? (independent of view status)
+                ActionRequired = IsResponsibleUser(userId, r.RequesterId, r.DesignerId, r.ApproverId, r.Status, userRoles),
+                // IsUnread: Has this user viewed the request at current status? (for visual indication only)
+                IsUnread = IsResponsibleUser(userId, r.RequesterId, r.DesignerId, r.ApproverId, r.Status, userRoles) &&
+                          (!viewedRequestStatusMap.TryGetValue((r.Id, r.Status), out var lastViewedAt) ||
+                          (r.LatestHistoryDate ?? r.SubmissionDate) > lastViewedAt)
             }).ToList();
+
+            // --- 7. Filter to action-required items only if requested ---
+            if (actionRequiredOnly)
+            {
+                requestsWithUnread = requestsWithUnread
+                    .Where(r => r.ActionRequired) // Filter by responsibility, NOT by view status
+                    .ToList();
+            }
 
             // مرتب‌سازی: همه درخواست‌ها بر اساس آخرین تاریخ تغییر وضعیت (جدیدترین اول)
             requestsWithUnread = requestsWithUnread
@@ -189,26 +205,31 @@ namespace GraphicRequestSystem.API.Controllers
                 );
 
             // Helper method to get count of UNREAD items (not viewed at current status OR viewed before last status change)
+            // AND only for requests where the user is responsible for action
             async Task<int> GetUnreadItemsCount(Func<IQueryable<Request>, IQueryable<Request>> filter)
             {
                 var query = _context.Requests.AsQueryable();
                 query = filter(query);
 
-                // Get all requests with their current status and last change date
+                // Get all requests with their current status, assignments, and last change date
                 var requestsWithStatus = await query.Select(r => new
                 {
                     r.Id,
                     r.Status,
+                    r.RequesterId,
+                    r.DesignerId,
+                    r.ApproverId,
                     r.SubmissionDate,
                     LatestHistoryDate = _context.RequestHistories
                         .Where(h => h.RequestId == r.Id)
                         .Max(h => (DateTime?)h.ActionDate)
                 }).ToListAsync();
 
-                // Count how many are unread (never viewed at current status OR last change happened after last view)
+                // Count how many are unread AND user is responsible for action
                 var unreadCount = requestsWithStatus.Count(r =>
-                    !viewedRequestStatusMap.TryGetValue((r.Id, r.Status), out var lastViewedAt) ||
-                    (r.LatestHistoryDate ?? r.SubmissionDate) > lastViewedAt
+                    IsResponsibleUser(userId, r.RequesterId, r.DesignerId, r.ApproverId, r.Status, userRoles) &&
+                    (!viewedRequestStatusMap.TryGetValue((r.Id, r.Status), out var lastViewedAt) ||
+                    (r.LatestHistoryDate ?? r.SubmissionDate) > lastViewedAt)
                 );
 
                 return unreadCount;
@@ -217,16 +238,15 @@ namespace GraphicRequestSystem.API.Controllers
             // Requester counts
             if (userRoles.Contains("Requester"))
             {
-                // Under Review – Requests submitted but designer hasn't started yet
-                counts["requester_underReview"] = await GetUnreadItemsCount(
-                    q => q.Where(r => r.RequesterId == userId &&
-                        (r.Status == RequestStatus.Submitted || r.Status == RequestStatus.DesignerReview)));
-
-                // Needs Revision – Requests returned by the designer
-                counts["requester_needsRevision"] = await GetUnreadItemsCount(
+                // Needs Correction – Requests returned by designer for fixes
+                counts["requester_needsCorrection"] = await GetUnreadItemsCount(
                     q => q.Where(r => r.RequesterId == userId && r.Status == RequestStatus.PendingCorrection));
 
-                // Completed – Requests that have been finalized and closed
+                // My Requests – Track active requests in workflow (monitoring only, no unread count shown)
+                // Statuses: 1 (DesignerReview), 3 (DesignInProgress), 4 (PendingApproval), 5 (PendingRedesign)
+                // Note: Status 0 (Submitted) not included as it's auto-assigned and invisible to users
+
+                // Completed – Finalized requests
                 counts["requester_completed"] = await GetUnreadItemsCount(
                     q => q.Where(r => r.RequesterId == userId && r.Status == RequestStatus.Completed));
             }
@@ -234,20 +254,18 @@ namespace GraphicRequestSystem.API.Controllers
             // Designer counts
             if (userRoles.Contains("Designer"))
             {
-                // Pending Action – New requests, requests returned by approver, and resubmitted by requester after correction
-                counts["designer_pendingAction"] = await GetUnreadItemsCount(
+                // Design Requests – New assignments and redesign requests (action required)
+                counts["designer_newRequests"] = await GetUnreadItemsCount(
                     q => q.Where(r => r.DesignerId == userId &&
                         (r.Status == RequestStatus.DesignerReview || r.Status == RequestStatus.PendingRedesign)));
 
-                // In Progress – Requests currently being worked on
-                counts["designer_inProgress"] = await GetUnreadItemsCount(
-                    q => q.Where(r => r.DesignerId == userId && r.Status == RequestStatus.DesignInProgress));
+                // In Progress – Currently working on (no unread count needed)
+                // Statuses: 3 (DesignInProgress)
 
-                // Pending Approval – Design completed but awaiting approval
-                counts["designer_pendingApproval"] = await GetUnreadItemsCount(
-                    q => q.Where(r => r.DesignerId == userId && r.Status == RequestStatus.PendingApproval));
+                // Waiting Requests – Waiting on others (no unread count needed)
+                // Statuses: 2 (PendingCorrection), 4 (PendingApproval)
 
-                // Completed – Projects that have been finalized and closed
+                // Completed – Delivered designs
                 counts["designer_completed"] = await GetUnreadItemsCount(
                     q => q.Where(r => r.DesignerId == userId && r.Status == RequestStatus.Completed));
             }
@@ -255,13 +273,16 @@ namespace GraphicRequestSystem.API.Controllers
             // Approver counts
             if (userRoles.Contains("Approver"))
             {
-                // Pending Approval – Requests that require a decision or approval
+                // Pending Approval – Designs ready for approval decision (action required)
                 counts["approver_pendingApproval"] = await GetUnreadItemsCount(
                     q => q.Where(r => r.ApproverId == userId && r.Status == RequestStatus.PendingApproval));
 
-                // Completed – Requests that have been approved or closed
-                counts["approver_completed"] = await GetUnreadItemsCount(
+                // Approved – Successfully approved requests
+                counts["approver_approved"] = await GetUnreadItemsCount(
                     q => q.Where(r => r.ApproverId == userId && r.Status == RequestStatus.Completed));
+
+                // All Requests – Monitor entire workflow (no unread count needed)
+                // Statuses: 1 (DesignerReview), 2 (PendingCorrection), 3 (DesignInProgress), 5 (PendingRedesign)
             }
 
             return Ok(counts);
@@ -1415,22 +1436,29 @@ namespace GraphicRequestSystem.API.Controllers
                 }
                 _context.Attachments.RemoveRange(attachmentsToDelete);
 
-                var historyLog = new RequestHistory
-                {
-                    RequestId = id,
-                    ActionDate = DateTime.UtcNow,
-                    ActorId = requesterId,
-                    PreviousStatus = request.Status, // وضعیت تغییر نمی‌کند
-                    NewStatus = request.Status,
-                    Comment = "درخواست توسط ثبت کننده ویرایش شد."
-                };
-                await _context.RequestHistories.AddAsync(historyLog);
-                await _context.SaveChangesAsync();
+                // Don't create history entry for simple edits to avoid marking request as unread
+                // History entries should only be created for actual status changes or workflow actions
+                // This prevents the request from appearing as "new" in the requester's inbox after editing
 
+                RequestHistory? historyLog = null;
 
                 // ۲. افزودن فایل‌های جدید
+                // Only create history log if attachments were added (need RequestHistoryId for new attachments)
                 if (files != null && files.Count > 0)
                 {
+                    // Create history entry for attachment additions
+                    historyLog = new RequestHistory
+                    {
+                        RequestId = id,
+                        ActionDate = DateTime.UtcNow,
+                        ActorId = requesterId,
+                        PreviousStatus = request.Status, // وضعیت تغییر نمی‌کند
+                        NewStatus = request.Status,
+                        Comment = "فایل‌های جدید به درخواست اضافه شد."
+                    };
+                    await _context.RequestHistories.AddAsync(historyLog);
+                    await _context.SaveChangesAsync();
+
                     var uploadPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads");
                     if (!Directory.Exists(uploadPath)) Directory.CreateDirectory(uploadPath);
 
@@ -1468,7 +1496,14 @@ namespace GraphicRequestSystem.API.Controllers
                     await BroadcastCapacityUpdateAsync(request.DueDate);
                 }
 
-                return Ok(request);
+                // Return simple DTO to avoid circular references (same pattern as CreateRequest)
+                return Ok(new
+                {
+                    id = request.Id,
+                    title = request.Title,
+                    status = request.Status,
+                    message = "درخواست با موفقیت ویرایش شد"
+                });
             }
             catch (Exception ex)
             {
@@ -1536,6 +1571,42 @@ namespace GraphicRequestSystem.API.Controllers
                 Date = dueDate.Value.Date,
                 Timestamp = DateTime.UtcNow
             });
+        }
+
+        // Helper method to determine if a user is responsible for taking action at current status
+        private static bool IsResponsibleUser(
+            string currentUserId,
+            string? requesterId,
+            string? designerId,
+            string? approverId,
+            Core.Enums.RequestStatus status,
+            IList<string> userRoles)
+        {
+            return status switch
+            {
+                // Status 0 (Submitted): Admin needs to assign designer
+                Core.Enums.RequestStatus.Submitted => userRoles.Contains("Admin"),
+
+                // Status 1 (DesignerReview): Assigned designer needs to start work
+                Core.Enums.RequestStatus.DesignerReview => currentUserId == designerId,
+
+                // Status 2 (PendingCorrection): Requester needs to fix and resubmit
+                Core.Enums.RequestStatus.PendingCorrection => currentUserId == requesterId,
+
+                // Status 3 (DesignInProgress): Designer needs to complete
+                Core.Enums.RequestStatus.DesignInProgress => currentUserId == designerId,
+
+                // Status 4 (PendingApproval): Approver needs to approve/reject
+                Core.Enums.RequestStatus.PendingApproval => currentUserId == approverId,
+
+                // Status 5 (PendingRedesign): Designer needs to redesign and resubmit
+                Core.Enums.RequestStatus.PendingRedesign => currentUserId == designerId,
+
+                // Status 6 (Completed): No action needed from anyone
+                Core.Enums.RequestStatus.Completed => false,
+
+                _ => false
+            };
         }
     }
 }

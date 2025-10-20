@@ -37,6 +37,10 @@ import SendIcon from '@mui/icons-material/Send';
 import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import AllInboxIcon from '@mui/icons-material/AllInbox';
 import EditNoteIcon from '@mui/icons-material/EditNote';
+import BuildIcon from '@mui/icons-material/Build';
+import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
+import AssignmentIcon from '@mui/icons-material/Assignment';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import { useLocation } from 'react-router-dom';
 import {
     apiSlice,
@@ -67,11 +71,13 @@ interface SignalRNotification {
 interface InboxItem {
     text: string;
     icon: React.ReactNode;
-    inboxType: 'inbox' | 'outbox' | 'completed' | 'all';
+    inboxType: 'inbox' | 'outbox' | 'completed' | 'all' | 'waiting' | 'progress';
     statuses: number[];
     countKey?: string;
     color?: 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning';
     description?: string;
+    actionRequiredOnly?: boolean;
+    roleLabel?: string;
 }
 
 interface AdminMenuItem {
@@ -153,39 +159,36 @@ const MainLayout = () => {
         if (userRoles.includes('Requester')) {
             items.push(
                 {
-                    text: '� درخواست‌های من',
-                    icon: <InboxIcon fontSize="small" />,
-                    inboxType: 'inbox',
-                    statuses: [0, 1],
-                    countKey: 'requester_underReview',
-                    color: 'primary',
-                    description: 'درخواست‌های جدید و در حال بررسی (درخواست‌کننده)'
-                },
-                {
-                    text: '✏️ نیاز به اصلاح من',
+                    text: '✏️ نیاز به اصلاح',
                     icon: <EditNoteIcon fontSize="small" />,
                     inboxType: 'inbox',
-                    statuses: [2],
-                    countKey: 'requester_needsRevision',
+                    statuses: [2], // PendingCorrection
+                    countKey: 'requester_needsCorrection',
                     color: 'error',
-                    description: 'درخواست‌های برگشتی من که نیاز به ویرایش دارند'
+                    description: 'درخواست‌های برگشتی که نیاز به اصلاح دارند',
+                    actionRequiredOnly: true,
+                    roleLabel: 'Requester'
                 },
                 {
-                    text: '📤 ارسالی من',
+                    text: '📤 درخواست‌های من',
                     icon: <SendIcon fontSize="small" />,
                     inboxType: 'outbox',
-                    statuses: [0, 1, 2, 3, 4, 5],
+                    statuses: [1, 3, 4, 5], // DesignerReview, DesignInProgress, PendingApproval, PendingRedesign
                     color: 'info',
-                    description: 'درخواست‌های ارسالی من و در حال بررسی'
+                    description: 'پیگیری درخواست‌های من در مراحل مختلف',
+                    actionRequiredOnly: false,
+                    roleLabel: 'Requester'
                 },
                 {
-                    text: '✅ تکمیل شده من',
+                    text: '✅ تکمیل شده',
                     icon: <TaskAltIcon fontSize="small" />,
                     inboxType: 'completed',
-                    statuses: [6],
+                    statuses: [6], // Completed
                     countKey: 'requester_completed',
                     color: 'success',
-                    description: 'درخواست‌های نهایی و تحویل گرفته شده من'
+                    description: 'درخواست‌های نهایی شده',
+                    actionRequiredOnly: false,
+                    roleLabel: 'Requester'
                 }
             );
         }
@@ -194,30 +197,46 @@ const MainLayout = () => {
         if (userRoles.includes('Designer')) {
             items.push(
                 {
-                    text: '🎨 کارهای طراحی من',
+                    text: '🎨 درخواست‌های طراحی',
                     icon: <InboxIcon fontSize="small" />,
                     inboxType: 'inbox',
-                    statuses: [1, 5],
-                    countKey: 'designer_pendingAction',
+                    statuses: [1, 5], // DesignerReview, PendingRedesign
+                    countKey: 'designer_newRequests',
                     color: 'primary',
-                    description: 'تخصیص‌های جدید و درخواست‌های برگشتی (طراح)'
+                    description: 'درخواست‌های جدید و نیاز به طراحی مجدد',
+                    actionRequiredOnly: true,
+                    roleLabel: 'Designer'
                 },
                 {
-                    text: '📤 در حال طراحی',
-                    icon: <SendIcon fontSize="small" />,
-                    inboxType: 'outbox',
-                    statuses: [3, 4],
+                    text: '� در حال انجام',
+                    icon: <BuildIcon fontSize="small" />,
+                    inboxType: 'progress',
+                    statuses: [3], // DesignInProgress
+                    color: 'warning',
+                    description: 'درخواست‌هایی که در حال طراحی هستند',
+                    actionRequiredOnly: false,
+                    roleLabel: 'Designer'
+                },
+                {
+                    text: '⏳ در انتظار',
+                    icon: <HourglassEmptyIcon fontSize="small" />,
+                    inboxType: 'waiting',
+                    statuses: [2, 4], // PendingCorrection, PendingApproval
                     color: 'info',
-                    description: 'پروژه‌های در دست کار و ارسال شده برای تایید من'
+                    description: 'منتظر اصلاح یا تایید',
+                    actionRequiredOnly: false,
+                    roleLabel: 'Designer'
                 },
                 {
-                    text: '✅ تکمیل شده طراحی',
+                    text: '✅ تحویل داده شده',
                     icon: <TaskAltIcon fontSize="small" />,
                     inboxType: 'completed',
-                    statuses: [6],
+                    statuses: [6], // Completed
                     countKey: 'designer_completed',
                     color: 'success',
-                    description: 'پروژه‌های تحویل داده شده من'
+                    description: 'طراحی‌های تحویل شده',
+                    actionRequiredOnly: false,
+                    roleLabel: 'Designer'
                 }
             );
         }
@@ -226,30 +245,36 @@ const MainLayout = () => {
         if (userRoles.includes('Approver')) {
             items.push(
                 {
-                    text: '� تاییدهای من',
-                    icon: <InboxIcon fontSize="small" />,
+                    text: '📋 در انتظار تایید',
+                    icon: <AssignmentIcon fontSize="small" />,
                     inboxType: 'inbox',
-                    statuses: [4],
+                    statuses: [4], // PendingApproval
                     countKey: 'approver_pendingApproval',
                     color: 'primary',
-                    description: 'درخواست‌های منتظر تایید من (تاییدکننده)'
+                    description: 'درخواست‌های آماده برای تایید',
+                    actionRequiredOnly: true,
+                    roleLabel: 'Approver'
                 },
                 {
-                    text: '📤 بررسی شده توسط من',
-                    icon: <SendIcon fontSize="small" />,
-                    inboxType: 'outbox',
-                    statuses: [3, 5, 6],
-                    color: 'info',
-                    description: 'درخواست‌هایی که بررسی کرده‌ام'
-                },
-                {
-                    text: '✅ تایید شده توسط من',
-                    icon: <TaskAltIcon fontSize="small" />,
+                    text: '✅ تایید شده',
+                    icon: <CheckCircleIcon fontSize="small" />,
                     inboxType: 'completed',
-                    statuses: [6],
-                    countKey: 'approver_completed',
+                    statuses: [6], // Completed
+                    countKey: 'approver_approved',
                     color: 'success',
-                    description: 'درخواست‌های تایید و نهایی شده توسط من'
+                    description: 'درخواست‌های تایید شده',
+                    actionRequiredOnly: false,
+                    roleLabel: 'Approver'
+                },
+                {
+                    text: '📊 همه درخواست‌ها',
+                    icon: <DashboardIcon fontSize="small" />,
+                    inboxType: 'all',
+                    statuses: [1, 2, 3, 5], // DesignerReview, PendingCorrection, DesignInProgress, PendingRedesign
+                    color: 'info',
+                    description: 'نظارت بر کل فرآیند',
+                    actionRequiredOnly: false,
+                    roleLabel: 'Approver'
                 }
             );
         }
@@ -509,6 +534,9 @@ const MainLayout = () => {
                                     params.set('inboxType', item.inboxType);
                                     if (item.statuses.length > 0) {
                                         item.statuses.forEach(s => params.append('statuses', s.toString()));
+                                    }
+                                    if (item.actionRequiredOnly !== undefined) {
+                                        params.set('actionRequiredOnly', item.actionRequiredOnly.toString());
                                     }
                                     const queryString = params.toString();
                                     const path = `/requests?${queryString}`;

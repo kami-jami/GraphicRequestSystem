@@ -118,8 +118,8 @@ const CreateRequestPage = () => {
     const token = useSelector(selectCurrentUserToken); // For SignalR connection
 
     const { data: existingRequestData, isLoading: isLoadingExisting, refetch } = useGetRequestByIdQuery(Number(id), {
-        skip: !isEditMode,
-        refetchOnMountOrArgChange: true
+        skip: !isEditMode
+        // Removed refetchOnMountOrArgChange to prevent refetch after navigation on edit
     });
     const [createRequest, { isLoading: isCreating }] = useCreateRequestMutation();
     const [updateRequest, { isLoading: isUpdating }] = useUpdateRequestMutation();
@@ -310,26 +310,15 @@ const CreateRequestPage = () => {
         connection.on('CapacityUpdated', (data: { date: string; timestamp: string }) => {
             console.log('Capacity updated for date:', data.date);
 
-            // Refetch availability data to get updated capacity
-            // This will automatically update the date picker UI
-            const refetchAvailability = async () => {
-                try {
-                    // Using RTK Query's refetch functionality
-                    // The query will automatically re-run with same parameters
-                    dispatch(showNotification({
-                        message: 'ظرفیت به‌روزرسانی شد',
-                        severity: 'info'
-                    }));
+            // Show notification about capacity update
+            // The availability data will be refetched automatically on next date picker interaction
+            dispatch(showNotification({
+                message: 'ظرفیت تاریخ‌ها به‌روزرسانی شد',
+                severity: 'info'
+            }));
 
-                    // Force refetch by invalidating the cache
-                    // Note: We need to access the query via the hook's return value
-                    window.location.reload(); // Temporary: force full reload to refetch
-                } catch (error) {
-                    console.error('Error refetching availability:', error);
-                }
-            };
-
-            refetchAvailability();
+            // Note: We don't reload the page to avoid interrupting user's work
+            // RTK Query cache will be automatically invalidated by the backend's InboxUpdate signal
         });
 
         connection
@@ -566,7 +555,26 @@ const CreateRequestPage = () => {
             }
         } catch (err: any) {
             console.error('Error submitting form:', err);
-            const errorMessage = err.data?.message || err.data?.title || 'بروز خطا در ثبت درخواست';
+
+            // Better error message handling
+            let errorMessage = 'بروز خطا در ثبت درخواست';
+
+            if (err.status === 'FETCH_ERROR') {
+                errorMessage = 'خطا در ارتباط با سرور. لطفاً اتصال اینترنت خود را بررسی کنید.';
+            } else if (err.status === 401) {
+                errorMessage = 'دسترسی غیرمجاز. لطفاً دوباره وارد شوید.';
+            } else if (err.status === 403) {
+                errorMessage = 'شما اجازه انجام این عملیات را ندارید.';
+            } else if (err.status === 404) {
+                errorMessage = 'درخواست مورد نظر یافت نشد.';
+            } else if (err.status >= 500) {
+                errorMessage = 'خطای سرور. لطفاً با پشتیبانی تماس بگیرید.';
+            } else if (err.data?.message) {
+                errorMessage = err.data.message;
+            } else if (err.data?.title) {
+                errorMessage = err.data.title;
+            }
+
             dispatch(showNotification({
                 message: errorMessage,
                 severity: 'error'

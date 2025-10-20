@@ -8,11 +8,9 @@ import PendingActionsIcon from '@mui/icons-material/PendingActions';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
-import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
 import EditNoteIcon from '@mui/icons-material/EditNote';
 import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
-import PlayCircleIcon from '@mui/icons-material/PlayCircle';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import SpeedIcon from '@mui/icons-material/Speed';
 import AssessmentIcon from '@mui/icons-material/Assessment';
@@ -172,8 +170,7 @@ const StatSummaryCard = ({ title, value, icon, color, subtitle }: StatSummaryCar
 
 // Requester Dashboard
 const RequesterDashboard = ({ data, inboxCounts, navigate, refetchInboxCounts }: { data: any, inboxCounts: any, navigate: any, refetchInboxCounts: () => void }) => {
-    const underReview = inboxCounts.requester_underReview || 0;
-    const needsRevision = inboxCounts.requester_needsRevision || 0;
+    const needsCorrection = inboxCounts.requester_needsCorrection || 0;
     const completed = inboxCounts.requester_completed || 0;
 
     return (
@@ -234,31 +231,19 @@ const RequesterDashboard = ({ data, inboxCounts, navigate, refetchInboxCounts }:
                 وضعیت درخواست‌های من
             </Typography>
             <Grid container spacing={3} sx={{ mb: 4 }}>
-                <Grid size={{ xs: 12, md: 4 }}>
-                    <QuickActionCard
-                        title="در حال بررسی"
-                        count={underReview}
-                        icon={<HourglassEmptyIcon sx={{ fontSize: 32 }} />}
-                        gradient="linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)"
-                        onClick={() => navigate('/requests?' + new URLSearchParams([0, 1].map(s => ['statuses', s.toString()])).toString())}
-                        description="درخواست‌های ثبت شده در انتظار شروع طراحی"
-                        inboxKey="requester_underReview"
-                        refetchInboxCounts={refetchInboxCounts}
-                    />
-                </Grid>
-                <Grid size={{ xs: 12, md: 4 }}>
+                <Grid size={{ xs: 12, md: 6 }}>
                     <QuickActionCard
                         title="نیاز به اصلاح"
-                        count={needsRevision}
+                        count={needsCorrection}
                         icon={<EditNoteIcon sx={{ fontSize: 32 }} />}
                         gradient="linear-gradient(135deg, #fa709a 0%, #fee140 100%)"
                         onClick={() => navigate('/requests?' + new URLSearchParams(['2'].map(s => ['statuses', s])).toString())}
                         description="درخواست‌های برگشتی که نیاز به ویرایش دارند"
-                        inboxKey="requester_needsRevision"
+                        inboxKey="requester_needsCorrection"
                         refetchInboxCounts={refetchInboxCounts}
                     />
                 </Grid>
-                <Grid size={{ xs: 12, md: 4 }}>
+                <Grid size={{ xs: 12, md: 6 }}>
                     <QuickActionCard
                         title="تکمیل شده"
                         count={completed}
@@ -345,12 +330,8 @@ const RequesterDashboard = ({ data, inboxCounts, navigate, refetchInboxCounts }:
 
 // Designer Dashboard
 const DesignerDashboard = ({ data, inboxCounts, navigate, refetchInboxCounts }: { data: any, inboxCounts: any, navigate: any, refetchInboxCounts: () => void }) => {
-    const pendingAction = inboxCounts.designer_pendingAction || 0;
-    const inProgress = inboxCounts.designer_inProgress || 0;
-    const pendingApproval = inboxCounts.designer_pendingApproval || 0;
+    const newRequests = inboxCounts.designer_newRequests || 0;
     const completed = inboxCounts.designer_completed || 0;
-
-    const activeWorkload = pendingAction + inProgress;
 
     return (
         <Box>
@@ -386,10 +367,10 @@ const DesignerDashboard = ({ data, inboxCounts, navigate, refetchInboxCounts }: 
                             textAlign: 'center'
                         }}>
                             <Typography variant="h2" sx={{ fontWeight: 'bold' }}>
-                                {activeWorkload}
+                                {newRequests}
                             </Typography>
                             <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                                پروژه فعال
+                                درخواست جدید
                             </Typography>
                         </Box>
                     </Grid>
@@ -400,50 +381,26 @@ const DesignerDashboard = ({ data, inboxCounts, navigate, refetchInboxCounts }: 
                 اولویت‌های کاری
             </Typography>
             <Grid container spacing={3} sx={{ mb: 4 }}>
-                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                <Grid size={{ xs: 12, md: 6 }}>
                     <QuickActionCard
-                        title="نیاز به اقدام"
-                        count={pendingAction}
+                        title="درخواست‌های طراحی"
+                        count={newRequests}
                         icon={<NotificationsActiveIcon sx={{ fontSize: 32 }} />}
                         gradient="linear-gradient(135deg, #fa709a 0%, #fee140 100%)"
                         onClick={() => navigate('/requests?' + new URLSearchParams([1, 5].map(s => ['statuses', s.toString()])).toString())}
-                        description="درخواست‌های جدید و برگشتی"
-                        inboxKey="designer_pendingAction"
+                        description="درخواست‌های جدید و برگشتی از تایید"
+                        inboxKey="designer_newRequests"
                         refetchInboxCounts={refetchInboxCounts}
                     />
                 </Grid>
-                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                <Grid size={{ xs: 12, md: 6 }}>
                     <QuickActionCard
-                        title="در حال انجام"
-                        count={inProgress}
-                        icon={<PlayCircleIcon sx={{ fontSize: 32 }} />}
-                        gradient="linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)"
-                        onClick={() => navigate('/requests?' + new URLSearchParams(['3'].map(s => ['statuses', s])).toString())}
-                        description="پروژه‌های در دست طراحی"
-                        inboxKey="designer_inProgress"
-                        refetchInboxCounts={refetchInboxCounts}
-                    />
-                </Grid>
-                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                    <QuickActionCard
-                        title="منتظر تایید"
-                        count={pendingApproval}
-                        icon={<AccessTimeIcon sx={{ fontSize: 32 }} />}
-                        gradient="linear-gradient(135deg, #f093fb 0%, #f5576c 100%)"
-                        onClick={() => navigate('/requests?' + new URLSearchParams(['4'].map(s => ['statuses', s])).toString())}
-                        description="آماده برای بررسی"
-                        inboxKey="designer_pendingApproval"
-                        refetchInboxCounts={refetchInboxCounts}
-                    />
-                </Grid>
-                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                    <QuickActionCard
-                        title="تکمیل شده"
+                        title="تحویل داده شده"
                         count={completed}
                         icon={<TaskAltIcon sx={{ fontSize: 32 }} />}
                         gradient="linear-gradient(135deg, #30cfd0 0%, #330867 100%)"
                         onClick={() => navigate('/requests?' + new URLSearchParams(['6'].map(s => ['statuses', s])).toString())}
-                        description="پروژه‌های تحویل داده شده"
+                        description="پروژه‌های تکمیل شده"
                         inboxKey="designer_completed"
                         refetchInboxCounts={refetchInboxCounts}
                     />
@@ -517,10 +474,10 @@ const DesignerDashboard = ({ data, inboxCounts, navigate, refetchInboxCounts }: 
                             یادآوری‌ها
                         </Typography>
 
-                        {pendingAction > 0 && (
+                        {newRequests > 0 && (
                             <Alert severity="error" icon={<NotificationsActiveIcon />} sx={{ mb: 2 }}>
                                 <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                                    {pendingAction} پروژه منتظر شروع
+                                    {newRequests} درخواست منتظر شروع
                                 </Typography>
                                 <Typography variant="caption">
                                     لطفاً در اسرع وقت اقدام کنید
@@ -545,13 +502,11 @@ const DesignerDashboard = ({ data, inboxCounts, navigate, refetchInboxCounts }: 
                             </Alert>
                         )}
 
-                        {pendingApproval > 0 && (
-                            <Alert severity="info" sx={{ mb: 2 }}>
-                                <Typography variant="body2">
-                                    {pendingApproval} پروژه منتظر تایید نهایی
-                                </Typography>
-                            </Alert>
-                        )}
+                        <Alert severity="info" sx={{ mt: 2 }}>
+                            <Typography variant="caption">
+                                💡 نشان روی کارت‌ها تعداد درخواست‌های جدید و بدون بازدید را نشان می‌دهد
+                            </Typography>
+                        </Alert>
                     </Paper>
                 </Grid>
             </Grid>
@@ -562,7 +517,7 @@ const DesignerDashboard = ({ data, inboxCounts, navigate, refetchInboxCounts }: 
 // Approver Dashboard
 const ApproverDashboard = ({ data, inboxCounts, navigate, refetchInboxCounts }: { data: any, inboxCounts: any, navigate: any, refetchInboxCounts: () => void }) => {
     const pendingApproval = inboxCounts.approver_pendingApproval || 0;
-    const completed = inboxCounts.approver_completed || 0;
+    const approved = inboxCounts.approver_approved || 0;
 
     return (
         <Box>
@@ -630,12 +585,12 @@ const ApproverDashboard = ({ data, inboxCounts, navigate, refetchInboxCounts }: 
                 <Grid size={{ xs: 12, md: 6 }}>
                     <QuickActionCard
                         title="تایید شده"
-                        count={completed}
+                        count={approved}
                         icon={<TaskAltIcon sx={{ fontSize: 40 }} />}
                         gradient="linear-gradient(135deg, #30cfd0 0%, #330867 100%)"
                         onClick={() => navigate('/requests?' + new URLSearchParams(['6'].map(s => ['statuses', s])).toString())}
                         description="درخواست‌های تایید و نهایی شده"
-                        inboxKey="approver_completed"
+                        inboxKey="approver_approved"
                         refetchInboxCounts={refetchInboxCounts}
                     />
                 </Grid>
@@ -706,7 +661,7 @@ const ApproverDashboard = ({ data, inboxCounts, navigate, refetchInboxCounts }: 
                             <CheckCircleIcon sx={{ fontSize: 40 }} />
                         </Box>
                         <Typography variant="h3" sx={{ fontWeight: 'bold', mb: 1 }}>
-                            {completed}
+                            {approved}
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
                             تایید شده
@@ -725,12 +680,12 @@ const ApproverDashboard = ({ data, inboxCounts, navigate, refetchInboxCounts }: 
                             درصد تکمیل
                         </Typography>
                         <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#10b981' }}>
-                            {data.totalRequests > 0 ? Math.round((completed / data.totalRequests * 100)) : 0}%
+                            {data.totalRequests > 0 ? Math.round((approved / data.totalRequests * 100)) : 0}%
                         </Typography>
                     </Box>
                     <LinearProgress
                         variant="determinate"
-                        value={data.totalRequests > 0 ? (completed / data.totalRequests * 100) : 0}
+                        value={data.totalRequests > 0 ? (approved / data.totalRequests * 100) : 0}
                         sx={{
                             height: 12,
                             borderRadius: 6,
