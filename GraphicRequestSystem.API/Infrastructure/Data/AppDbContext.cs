@@ -30,6 +30,7 @@ namespace GraphicRequestSystem.API.Infrastructure.Data
         public DbSet<MiscellaneousDetail> MiscellaneousDetails { get; set; }
         public DbSet<Notification> Notifications { get; set; }
         public DbSet<InboxView> InboxViews { get; set; }
+        public DbSet<RequestView> RequestViews { get; set; }
         public DbSet<DesignerNote> DesignerNotes { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -167,6 +168,28 @@ namespace GraphicRequestSystem.API.Infrastructure.Data
             modelBuilder.Entity<InboxView>()
                 .HasIndex(iv => new { iv.UserId, iv.InboxCategory })
                 .IsUnique();
+
+            // RequestView configuration
+            modelBuilder.Entity<RequestView>()
+                .HasOne(rv => rv.User)
+                .WithMany()
+                .HasForeignKey(rv => rv.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<RequestView>()
+                .HasOne(rv => rv.Request)
+                .WithMany()
+                .HasForeignKey(rv => rv.RequestId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Composite unique index to ensure one view record per user per request per status
+            modelBuilder.Entity<RequestView>()
+                .HasIndex(rv => new { rv.UserId, rv.RequestId, rv.ViewedAtStatus })
+                .IsUnique();
+
+            // Index for faster querying of user's viewed requests
+            modelBuilder.Entity<RequestView>()
+                .HasIndex(rv => new { rv.UserId, rv.RequestId });
 
             // DesignerNote configuration
             modelBuilder.Entity<DesignerNote>()

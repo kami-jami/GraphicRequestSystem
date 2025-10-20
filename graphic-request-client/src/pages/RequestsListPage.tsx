@@ -1,4 +1,4 @@
-import { useGetRequestsQuery } from '../services/apiSlice';
+import { useGetRequestsQuery, useMarkRequestAsViewedMutation } from '../services/apiSlice';
 import {
     Box,
     Paper,
@@ -19,7 +19,8 @@ import {
     Avatar,
     Card,
     CardContent,
-    Divider
+    Divider,
+    Alert
 } from '@mui/material';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import moment from 'moment-jalaali';
@@ -37,6 +38,7 @@ import ViewModuleIcon from '@mui/icons-material/ViewModule';
 import SortIcon from '@mui/icons-material/Sort';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
 import PageHeader from '../components/PageHeader';
 import EmptyState from '../components/EmptyState';
 
@@ -89,6 +91,7 @@ const RequestsListPage = () => {
     const theme = useTheme();
     const [searchParams, setSearchParams] = useSearchParams();
     const [pageTitle, setPageTitle] = useState('همه درخواست‌ها');
+    const [inboxType, setInboxType] = useState<'inbox' | 'outbox' | 'completed' | 'all'>('all');
     const [viewMode, setViewMode] = useState<'card' | 'list'>('card');
     const [page, setPage] = useState(1);
     const itemsPerPage = viewMode === 'card' ? 12 : 20;
@@ -99,44 +102,43 @@ const RequestsListPage = () => {
     const [filterAnchorEl, setFilterAnchorEl] = useState<null | HTMLElement>(null);
     const [sortAnchorEl, setSortAnchorEl] = useState<null | HTMLElement>(null);
     const [sortBy, setSortBy] = useState<'date' | 'priority' | 'status'>('date');
-    const [viewedRequests, setViewedRequests] = useState<Set<number>>(new Set());
-
-    // Load viewed requests from localStorage on mount
-    useEffect(() => {
-        const stored = localStorage.getItem('viewedRequests');
-        if (stored) {
-            try {
-                const parsed = JSON.parse(stored);
-                setViewedRequests(new Set(parsed));
-            } catch (e) {
-                console.error('Failed to parse viewed requests:', e);
-            }
-        }
-    }, []);
 
     useEffect(() => {
         const statusesFromUrl = searchParams.getAll('statuses');
         const searchTermFromUrl = searchParams.get('searchTerm') || '';
+        const inboxTypeFromUrl = searchParams.get('inboxType') as 'inbox' | 'outbox' | 'completed' | 'all' || 'all';
 
         setStatusFilter(statusesFromUrl.map(s => Number(s)));
         setSearchTerm(searchTermFromUrl);
-        setPageTitle(getWorklistTitle(statusesFromUrl));
+        setInboxType(inboxTypeFromUrl);
+
+        // Set page title based on inbox type and statuses
+        // Check for specific status combinations first
+        if (statusesFromUrl.length === 1 && statusesFromUrl[0] === '2') {
+            setPageTitle('✏️ نیاز به اصلاح');
+        } else {
+            const inboxTitles: Record<string, string> = {
+                'inbox': '📥 صندوق ورودی',
+                'outbox': '📤 ارسال شده',
+                'completed': '✅ تکمیل شده',
+                'all': 'همه درخواست‌ها'
+            };
+            setPageTitle(inboxTitles[inboxTypeFromUrl] || getWorklistTitle(statusesFromUrl));
+        }
     }, [searchParams]);
 
-    // Mark request as viewed and save to localStorage
-    const markRequestAsViewed = (requestId: number) => {
-        setViewedRequests(prev => {
-            const updated = new Set(prev);
-            updated.add(requestId);
-            // Save to localStorage
-            localStorage.setItem('viewedRequests', JSON.stringify(Array.from(updated)));
-            return updated;
-        });
-    };
+    const [markRequestAsViewed] = useMarkRequestAsViewedMutation();
 
-    // Handle request click
-    const handleRequestClick = (requestId: number) => {
-        markRequestAsViewed(requestId);
+    // Handle request click - mark as viewed and navigate
+    const handleRequestClick = async (requestId: number) => {
+        // Mark request as viewed on backend
+        try {
+            await markRequestAsViewed(requestId).unwrap();
+        } catch (error) {
+            console.error('Failed to mark request as viewed:', error);
+        }
+
+        // Navigate to request details
         navigate(`/requests/${requestId}`);
     };
 
@@ -167,25 +169,21 @@ const RequestsListPage = () => {
         handleStatusFilterChange(newFilter);
     };
 
-    // Sort and filter requests (keep unread items at top)
+    // Sort and filter requests
     const sortedRequests = requests ? [...requests].sort((a, b) => {
-        // Check if request is truly unread (backend says unread AND not viewed locally)
-        const aIsUnread = a.isUnread && !viewedRequests.has(a.id);
-        const bIsUnread = b.isUnread && !viewedRequests.has(b.id);
-
-        // Always keep unread items at the top
-        if (aIsUnread && !bIsUnread) return -1;
-        if (!aIsUnread && bIsUnread) return 1;
-
-        // Then apply secondary sorting
+        // Apply sorting based on user selection
         switch (sortBy) {
             case 'priority':
                 return (b.priority || 0) - (a.priority || 0);
             case 'status':
                 return (a.status || 0) - (b.status || 0);
             case 'date':
-            default:
-                return new Date(b.submissionDate || b.dueDate).getTime() - new Date(a.submissionDate || a.dueDate).getTime();
+            default: {
+                // Sort by last status change date (or submission date if no history)
+                const aDate = a.lastStatusChangeDate || a.submissionDate || a.dueDate;
+                const bDate = b.lastStatusChangeDate || b.submissionDate || b.dueDate;
+                return new Date(bDate).getTime() - new Date(aDate).getTime();
+            }
         }
     }) : [];
 
@@ -194,11 +192,18 @@ const RequestsListPage = () => {
 
     const activeFiltersCount = statusFilter.length;
 
+    // Calculate unread count
+    const unreadCount = sortedRequests.filter(r => r.isUnread).length;
+
     return (
         <Box sx={{ p: 3, maxWidth: 1400, mx: 'auto' }}>
             <PageHeader
                 title={pageTitle}
-                subtitle={`${sortedRequests.length} درخواست یافت شد`}
+                subtitle={
+                    unreadCount > 0
+                        ? `${sortedRequests.length} درخواست (${unreadCount} خوانده نشده)`
+                        : `${sortedRequests.length} درخواست یافت شد`
+                }
                 breadcrumbs={[
                     { label: 'خانه', path: '/' },
                     { label: 'درخواست‌ها' }
@@ -209,6 +214,21 @@ const RequestsListPage = () => {
                     onClick: () => navigate('/requests/new')
                 }}
             />
+
+            {/* Info Alert for Email-like Experience */}
+            {unreadCount > 0 && inboxType === 'inbox' && (
+                <Alert
+                    severity="info"
+                    sx={{ mb: 3, borderRadius: 3 }}
+                    icon={<FiberManualRecordIcon sx={{ color: 'info.main' }} />}
+                >
+                    <Typography variant="body2">
+                        شما <strong>{unreadCount} درخواست خوانده نشده</strong> دارید.
+                        درخواست‌های جدید با پس‌زمینه آبی و برچسب "جدید" مشخص شده‌اند.
+                        با کلیک روی هر درخواست، به عنوان خوانده شده علامت‌گذاری می‌شود.
+                    </Typography>
+                </Alert>
+            )}
 
             {/* Filters and Controls */}
             <Paper
@@ -481,15 +501,30 @@ const RequestsListPage = () => {
                 </Paper>
             ) : paginatedRequests.length === 0 ? (
                 <EmptyState
-                    title="درخواستی یافت نشد"
-                    description="با تغییر فیلترها یا جستجوی مجدد، درخواست مورد نظر خود را پیدا کنید"
-                    action={{
-                        label: 'پاک کردن فیلترها',
-                        onClick: () => {
-                            handleStatusFilterChange([]);
-                            setSearchTerm('');
+                    title={
+                        inboxType === 'inbox' ? '📥 صندوق ورودی خالی است' :
+                            inboxType === 'outbox' ? '📤 هیچ درخواست ارسالی ندارید' :
+                                inboxType === 'completed' ? '✅ هیچ درخواست تکمیل شده‌ای ندارید' :
+                                    'درخواستی یافت نشد'
+                    }
+                    description={
+                        inboxType === 'inbox' ? 'درخواست جدیدی برای شما ارسال نشده است' :
+                            inboxType === 'outbox' ? 'درخواست جدیدی ثبت کنید تا در این بخش نمایش داده شود' :
+                                inboxType === 'completed' ? 'هنوز هیچ درخواستی تکمیل نشده است' :
+                                    'با تغییر فیلترها یا جستجوی مجدد، درخواست مورد نظر خود را پیدا کنید'
+                    }
+                    action={
+                        inboxType === 'outbox' ? {
+                            label: 'ثبت درخواست جدید',
+                            onClick: () => navigate('/requests/new')
+                        } : {
+                            label: 'پاک کردن فیلترها',
+                            onClick: () => {
+                                handleStatusFilterChange([]);
+                                setSearchTerm('');
+                            }
                         }
-                    }}
+                    }
                 />
             ) : viewMode === 'card' ? (
                 <Paper
@@ -528,10 +563,7 @@ const RequestsListPage = () => {
                             {paginatedRequests.map((request, index) => (
                                 <RequestTableRow
                                     key={request.id}
-                                    request={{
-                                        ...request,
-                                        isUnread: request.isUnread && !viewedRequests.has(request.id)
-                                    }}
+                                    request={request}
                                     isLast={index === paginatedRequests.length - 1}
                                     onClick={() => handleRequestClick(request.id)}
                                 />
@@ -544,10 +576,7 @@ const RequestsListPage = () => {
                     {paginatedRequests.map((request) => (
                         <RequestListItem
                             key={request.id}
-                            request={{
-                                ...request,
-                                isUnread: request.isUnread && !viewedRequests.has(request.id)
-                            }}
+                            request={request}
                             onClick={() => handleRequestClick(request.id)}
                         />
                     ))}
@@ -635,11 +664,12 @@ const RequestTableRow = ({ request, isLast, onClick }: { request: any; isLast: b
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
                 <Typography
                     variant="body2"
-                    fontWeight={600}
+                    fontWeight={isUnread ? 700 : 600}
                     sx={{
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
                         whiteSpace: 'nowrap',
+                        color: isUnread ? 'text.primary' : 'text.primary',
                     }}
                 >
                     {request.title}
@@ -920,7 +950,15 @@ const RequestListItem = ({ request, onClick }: { request: any; onClick: () => vo
                 <Box sx={{ flex: 1, minWidth: 0 }}>
                     <Stack spacing={1}>
                         <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-                            <Typography variant="subtitle1" fontWeight={700} sx={{ flex: 1, minWidth: 200 }}>
+                            <Typography
+                                variant="subtitle1"
+                                fontWeight={isUnread ? 800 : 700}
+                                sx={{
+                                    flex: 1,
+                                    minWidth: 200,
+                                    color: isUnread ? 'text.primary' : 'text.primary',
+                                }}
+                            >
                                 {request.title}
                             </Typography>
                             {isUnread && (

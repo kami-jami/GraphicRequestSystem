@@ -205,5 +205,144 @@ If the issue persists, check the backend API response:
 
 **Note**: The LookupItem entity uses `Value` property (not `Name`) to store the display text.
 
+---
+
+### October 19, 2025 - Email-Like Inbox Redesign 📧
+
+**Issue**: The request list page used status-based navigation which was confusing for users. Users didn't have a clear understanding of "inbox" vs "outbox" vs "completed" items. The unread visual indicators were too subtle and easy to miss.
+
+**Solution**: Completely redesigned the navigation and request list pages to follow an email client UX pattern (like Gmail/Outlook). Implemented Inbox/Outbox/Completed structure with enhanced visual distinction for unread items.
+
+**Major Changes**:
+
+1. **Navigation Structure** (`MainLayout.tsx`):
+   - **Before**: Status-based items (در حال بررسی, نیاز به اصلاح, منتظر تایید, etc.)
+   - **After**: Email-like categories:
+     - 📥 **صندوق ورودی (Inbox)** - New incoming requests
+     - 📤 **ارسال شده / در حال انجام (Outbox)** - Sent/active requests
+     - ✅ **تکمیل شده (Completed)** - Finished requests
+     - 📂 **همه درخواست‌ها (All)** - All requests
+   - Added `inboxType` property to InboxItem interface
+   - Updated URL generation to include `inboxType` parameter
+   - Role-specific inbox categories for Requester, Designer, Approver
+
+2. **Enhanced Unread Visual Indicators** (`RequestsListPage.tsx`):
+   - **Bold text** for unread titles (fontWeight 700 vs 600)
+   - **Blue background tint** (`alpha(theme.palette.info.main, 0.08)`)
+   - **4px left border** in primary blue color
+   - **"جدید" badge** displayed prominently
+   - **Always sorted to top** of the list (unread first)
+   - Enhanced hover effects for better interactivity
+
+3. **Smart Page Titles**:
+   - Inbox: "📥 صندوق ورودی"
+   - Outbox: "📤 ارسال شده" (role-specific text)
+   - Completed: "✅ تکمیل شده"
+   - All: "همه درخواست‌ها"
+
+4. **Unread Counter in Subtitle**:
+   - Shows total requests
+   - Displays unread count when present: "12 درخواست (5 خوانده نشده)"
+   - Real-time calculation based on backend + localStorage tracking
+
+5. **Contextual Info Alert**:
+   - Appears when unread items exist in inbox
+   - Explains: "شما 5 درخواست خوانده نشده دارید..."
+   - Guides users on how read/unread tracking works
+   - Blue info style with `FiberManualRecordIcon`
+
+6. **Enhanced Empty States**:
+   - **Inbox Empty**: "📥 صندوق ورودی خالی است"
+   - **Outbox Empty**: "📤 هیچ درخواست ارسالی ندارید" + "Create New" button
+   - **Completed Empty**: "✅ هیچ درخواست تکمیل شده‌ای ندارید"
+   - Context-aware messages guide users appropriately
+
+7. **Mobile Responsive Enhancements**:
+   - Same unread indicators work in card view
+   - Enhanced borders and backgrounds
+   - Bold text for unread items
+   - Touch-friendly interactions
+
+**Technical Implementation**:
+
+```typescript
+// MainLayout.tsx - New inbox item structure
+interface InboxItem {
+    text: string;
+    icon: React.ReactNode;
+    inboxType: 'inbox' | 'outbox' | 'completed' | 'all';  // NEW
+    statuses: number[];
+    countKey?: string;
+    color?: ...;
+    description?: string;
+}
+
+// RequestsListPage.tsx - New state and logic
+const [inboxType, setInboxType] = useState<'inbox' | 'outbox' | 'completed' | 'all'>('all');
+const unreadCount = sortedRequests.filter(r => r.isUnread && !viewedRequests.has(r.id)).length;
+```
+
+**Role-Based Inbox Configuration**:
+
+| Role | Inbox Statuses | Outbox Statuses | Completed |
+|------|----------------|-----------------|-----------|
+| **Requester** | 0, 1, 2 | 0, 1, 2, 3, 4, 5 | 6 |
+| **Designer** | 1, 5 | 3, 4 | 6 |
+| **Approver** | 4 | 3, 5, 6 | 6 |
+| **Admin** | 1, 2, 3, 4, 5 | - | 6 |
+
+**URL Structure**:
+- Before: `/requests?statuses=0&statuses=1`
+- After: `/requests?inboxType=inbox&statuses=0&statuses=1`
+
+**Visual Indicators for Unread Requests**:
+1. Blue background tint (#EBF5FB)
+2. 4px solid left border (primary blue)
+3. Bold title text (fontWeight 700)
+4. "جدید" chip badge (blue)
+5. Always sorted to top
+
+**Impact**:
+- **Instant Recognition**: Email metaphor is universally understood
+- **Clear Organization**: Users know exactly where to look
+- **Visual Clarity**: Unread items impossible to miss
+- **Better UX**: Reduced cognitive load and faster navigation
+- **Professional Feel**: Modern, polished interface
+- **Improved Productivity**: Less time searching, more time working
+- **Higher Satisfaction**: Familiar patterns = happy users
+
+**Files Modified**:
+- `MainLayout.tsx` (~50 lines) - Navigation structure
+- `RequestsListPage.tsx` (~100 lines) - List page enhancements
+- `EMAIL_INBOX_REDESIGN.md` (NEW) - Complete documentation
+- `EMAIL_INBOX_SUMMARY.md` (NEW) - User-friendly overview
+- `EMAIL_INBOX_VISUAL_GUIDE.md` (NEW) - Visual before/after comparisons
+
+**Backward Compatibility**:
+✅ Old URLs still work
+✅ No database changes
+✅ Existing features preserved
+✅ Progressive enhancement only
+
+**Testing**:
+- ✅ All navigation items work correctly
+- ✅ Badge counts display properly
+- ✅ Unread highlighting prominent and clear
+- ✅ Click-to-mark-as-read functions
+- ✅ localStorage persistence works
+- ✅ Page titles update correctly
+- ✅ Unread counter accurate
+- ✅ Info alerts display when needed
+- ✅ Empty states show appropriate messages
+- ✅ Mobile responsive on all devices
+- ✅ All user roles tested
+
+**Documentation**:
+- Complete technical spec: `EMAIL_INBOX_REDESIGN.md`
+- User guide: `EMAIL_INBOX_SUMMARY.md`
+- Visual comparison: `EMAIL_INBOX_VISUAL_GUIDE.md`
+
+---
+
 ## Date
 Updated: October 19, 2025

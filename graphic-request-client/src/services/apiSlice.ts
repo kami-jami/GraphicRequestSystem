@@ -99,6 +99,17 @@ export const apiSlice = createApi({
       }),
       invalidatesTags: [{ type: 'Request', id: 'LIST' }, 'InboxCounts']
     }),
+    markRequestAsViewed: builder.mutation<void, number>({
+      query: (requestId) => ({
+        url: `/requests/${requestId}/mark-viewed`,
+        method: 'POST'
+      }),
+      invalidatesTags: (result, error, requestId) => [
+        { type: 'Request', id: requestId },
+        { type: 'Request', id: 'LIST' },
+        'InboxCounts'
+      ]
+    }),
     getLookupLists: builder.query<string[], void>({ query: () => '/lookup' }),
     getRequestComments: builder.query<any[], number>({ query: (id) => `/requests/${id}/comments`, providesTags: ['Comments'] }),
     addComment: builder.mutation<any, { requestId: number; content: string }>({ 
@@ -404,6 +415,7 @@ export const {
     useMarkAllAsReadMutation,
     useGetInboxCountsQuery,
     useMarkInboxAsViewedMutation,
+    useMarkRequestAsViewedMutation,
     useGetDesignerNotesForRequestQuery,
     useGetDesignerNoteByIdQuery,
     useCreateDesignerNoteMutation,

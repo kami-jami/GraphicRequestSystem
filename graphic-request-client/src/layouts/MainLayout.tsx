@@ -27,19 +27,16 @@ import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
-import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
-import EditNoteIcon from '@mui/icons-material/EditNote';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
-import PlayCircleOutlineIcon from '@mui/icons-material/PlayCircleOutline';
-import AccessTimeIcon from '@mui/icons-material/AccessTime';
-import AssignmentIcon from '@mui/icons-material/Assignment';
 import PeopleIcon from '@mui/icons-material/People';
 import SettingsIcon from '@mui/icons-material/Settings';
 import ListAltIcon from '@mui/icons-material/ListAlt';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import BrushIcon from '@mui/icons-material/Brush';
 import InboxIcon from '@mui/icons-material/Inbox';
+import SendIcon from '@mui/icons-material/Send';
+import TaskAltIcon from '@mui/icons-material/TaskAlt';
+import AllInboxIcon from '@mui/icons-material/AllInbox';
+import EditNoteIcon from '@mui/icons-material/EditNote';
 import { useLocation } from 'react-router-dom';
 import {
     apiSlice,
@@ -70,6 +67,7 @@ interface SignalRNotification {
 interface InboxItem {
     text: string;
     icon: React.ReactNode;
+    inboxType: 'inbox' | 'outbox' | 'completed' | 'all';
     statuses: number[];
     countKey?: string;
     color?: 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning';
@@ -146,138 +144,151 @@ const MainLayout = () => {
         navigate(path);
     };
 
-    // Role-based inbox items with modern icons
+    // Email-like inbox structure - supports multiple roles
     const getInboxItems = (): InboxItem[] => {
         const userRoles = user?.roles || [];
+        const items: InboxItem[] = [];
 
+        // Add Requester items
         if (userRoles.includes('Requester')) {
-            return [
+            items.push(
                 {
-                    text: 'در حال بررسی',
-                    icon: <HourglassEmptyIcon fontSize="small" />,
+                    text: '� درخواست‌های من',
+                    icon: <InboxIcon fontSize="small" />,
+                    inboxType: 'inbox',
                     statuses: [0, 1],
                     countKey: 'requester_underReview',
-                    color: 'info',
-                    description: 'درخواست‌های ثبت شده در انتظار شروع طراحی'
+                    color: 'primary',
+                    description: 'درخواست‌های جدید و در حال بررسی (درخواست‌کننده)'
                 },
                 {
-                    text: 'نیاز به اصلاح',
+                    text: '✏️ نیاز به اصلاح من',
                     icon: <EditNoteIcon fontSize="small" />,
+                    inboxType: 'inbox',
                     statuses: [2],
                     countKey: 'requester_needsRevision',
                     color: 'error',
-                    description: 'درخواست‌های برگشتی که نیاز به ویرایش دارند'
+                    description: 'درخواست‌های برگشتی من که نیاز به ویرایش دارند'
                 },
                 {
-                    text: 'تکمیل شده',
-                    icon: <CheckCircleIcon fontSize="small" />,
+                    text: '📤 ارسالی من',
+                    icon: <SendIcon fontSize="small" />,
+                    inboxType: 'outbox',
+                    statuses: [0, 1, 2, 3, 4, 5],
+                    color: 'info',
+                    description: 'درخواست‌های ارسالی من و در حال بررسی'
+                },
+                {
+                    text: '✅ تکمیل شده من',
+                    icon: <TaskAltIcon fontSize="small" />,
+                    inboxType: 'completed',
                     statuses: [6],
                     countKey: 'requester_completed',
                     color: 'success',
-                    description: 'درخواست‌های نهایی شده و تحویل گرفته شده'
-                },
-                {
-                    text: 'همه درخواست‌های من',
-                    icon: <AssignmentIcon fontSize="small" />,
-                    statuses: []
-                },
-            ];
+                    description: 'درخواست‌های نهایی و تحویل گرفته شده من'
+                }
+            );
         }
 
+        // Add Designer items
         if (userRoles.includes('Designer')) {
-            return [
+            items.push(
                 {
-                    text: 'نیاز به اقدام',
-                    icon: <NotificationsActiveIcon fontSize="small" />,
+                    text: '🎨 کارهای طراحی من',
+                    icon: <InboxIcon fontSize="small" />,
+                    inboxType: 'inbox',
                     statuses: [1, 5],
                     countKey: 'designer_pendingAction',
-                    color: 'error',
-                    description: 'درخواست‌های جدید و برگشتی از تاییدکننده'
+                    color: 'primary',
+                    description: 'تخصیص‌های جدید و درخواست‌های برگشتی (طراح)'
                 },
                 {
-                    text: 'در حال انجام',
-                    icon: <PlayCircleOutlineIcon fontSize="small" />,
-                    statuses: [3],
-                    countKey: 'designer_inProgress',
+                    text: '📤 در حال طراحی',
+                    icon: <SendIcon fontSize="small" />,
+                    inboxType: 'outbox',
+                    statuses: [3, 4],
                     color: 'info',
-                    description: 'پروژه‌های در دست طراحی'
+                    description: 'پروژه‌های در دست کار و ارسال شده برای تایید من'
                 },
                 {
-                    text: 'منتظر تایید',
-                    icon: <AccessTimeIcon fontSize="small" />,
-                    statuses: [4],
-                    countKey: 'designer_pendingApproval',
-                    color: 'warning',
-                    description: 'طراحی کامل شده، منتظر تایید نهایی'
-                },
-                {
-                    text: 'تکمیل شده',
-                    icon: <CheckCircleIcon fontSize="small" />,
+                    text: '✅ تکمیل شده طراحی',
+                    icon: <TaskAltIcon fontSize="small" />,
+                    inboxType: 'completed',
                     statuses: [6],
                     countKey: 'designer_completed',
                     color: 'success',
-                    description: 'پروژه‌های تحویل داده شده'
-                },
-                {
-                    text: 'همه کارهای من',
-                    icon: <BrushIcon fontSize="small" />,
-                    statuses: []
-                },
-            ];
+                    description: 'پروژه‌های تحویل داده شده من'
+                }
+            );
         }
 
+        // Add Approver items
         if (userRoles.includes('Approver')) {
-            return [
+            items.push(
                 {
-                    text: 'منتظر تایید',
-                    icon: <AccessTimeIcon fontSize="small" />,
+                    text: '� تاییدهای من',
+                    icon: <InboxIcon fontSize="small" />,
+                    inboxType: 'inbox',
                     statuses: [4],
                     countKey: 'approver_pendingApproval',
-                    color: 'warning',
-                    description: 'درخواست‌های آماده برای تصمیم‌گیری'
+                    color: 'primary',
+                    description: 'درخواست‌های منتظر تایید من (تاییدکننده)'
                 },
                 {
-                    text: 'تکمیل شده',
-                    icon: <CheckCircleIcon fontSize="small" />,
+                    text: '📤 بررسی شده توسط من',
+                    icon: <SendIcon fontSize="small" />,
+                    inboxType: 'outbox',
+                    statuses: [3, 5, 6],
+                    color: 'info',
+                    description: 'درخواست‌هایی که بررسی کرده‌ام'
+                },
+                {
+                    text: '✅ تایید شده توسط من',
+                    icon: <TaskAltIcon fontSize="small" />,
+                    inboxType: 'completed',
                     statuses: [6],
                     countKey: 'approver_completed',
                     color: 'success',
-                    description: 'درخواست‌های تایید و نهایی شده'
-                },
-                {
-                    text: 'سابقه تایید‌های من',
-                    icon: <AssignmentIcon fontSize="small" />,
-                    statuses: []
-                },
-            ];
+                    description: 'درخواست‌های تایید و نهایی شده توسط من'
+                }
+            );
         }
 
-        // Default (Admin or others)
-        return [
-            {
-                text: 'درخواست‌های فعال',
-                icon: <PlayCircleOutlineIcon fontSize="small" />,
-                statuses: [3, 5],
-                color: 'info'
-            },
-            {
-                text: 'منتظر تایید',
-                icon: <AccessTimeIcon fontSize="small" />,
-                statuses: [4],
-                color: 'warning'
-            },
-            {
-                text: 'نیازمند اصلاح',
-                icon: <EditNoteIcon fontSize="small" />,
-                statuses: [2],
-                color: 'error'
-            },
-            {
+        // Add "All" item if user has any role-specific items
+        if (items.length > 0) {
+            items.push({
                 text: 'همه درخواست‌ها',
-                icon: <AssignmentIcon fontSize="small" />,
+                icon: <AllInboxIcon fontSize="small" />,
+                inboxType: 'all',
                 statuses: []
-            },
-        ];
+            });
+        } else {
+            // Default (Admin or others)
+            items.push(
+                {
+                    text: '📥 فعال',
+                    icon: <InboxIcon fontSize="small" />,
+                    inboxType: 'inbox',
+                    statuses: [1, 2, 3, 4, 5],
+                    color: 'primary'
+                },
+                {
+                    text: '✅ تکمیل شده',
+                    icon: <TaskAltIcon fontSize="small" />,
+                    inboxType: 'completed',
+                    statuses: [6],
+                    color: 'success'
+                },
+                {
+                    text: 'همه درخواست‌ها',
+                    icon: <AllInboxIcon fontSize="small" />,
+                    inboxType: 'all',
+                    statuses: []
+                }
+            );
+        }
+
+        return items;
     };
 
     const inboxItems = getInboxItems();
@@ -482,10 +493,10 @@ const MainLayout = () => {
                             }}
                         >
                             <ListItemIcon sx={{ minWidth: 40 }}>
-                                <InboxIcon fontSize="small" />
+                                <AllInboxIcon fontSize="small" />
                             </ListItemIcon>
                             <ListItemText
-                                primary="صندوق ورودی"
+                                primary="درخواست‌ها"
                                 primaryTypographyProps={{ fontSize: '0.875rem', fontWeight: 600 }}
                             />
                             {openInbox ? <ExpandLess fontSize="small" /> : <ExpandMore fontSize="small" />}
@@ -494,23 +505,19 @@ const MainLayout = () => {
                         <Collapse in={openInbox} timeout="auto" unmountOnExit>
                             <List component="div" disablePadding sx={{ mt: 0.5 }}>
                                 {inboxItems.map((item) => {
-                                    const queryParams = new URLSearchParams(
-                                        item.statuses.map((s) => ['statuses', s.toString()])
-                                    ).toString();
-                                    const path = `/requests?${queryParams}`;
+                                    const params = new URLSearchParams();
+                                    params.set('inboxType', item.inboxType);
+                                    if (item.statuses.length > 0) {
+                                        item.statuses.forEach(s => params.append('statuses', s.toString()));
+                                    }
+                                    const queryString = params.toString();
+                                    const path = `/requests?${queryString}`;
                                     const count = item.countKey ? inboxCounts[item.countKey] : undefined;
                                     const showBadge = count !== undefined && count > 0;
-                                    const isSelected = location.pathname === '/requests' && location.search === `?${queryParams}`;
+                                    const isSelected = location.pathname === '/requests' && location.search === `?${queryString}`;
 
-                                    const handleInboxClick = async () => {
-                                        if (item.countKey) {
-                                            try {
-                                                await markInboxAsViewed(item.countKey).unwrap();
-                                                refetchInboxCounts();
-                                            } catch (error) {
-                                                console.error('Failed to mark inbox as viewed:', error);
-                                            }
-                                        }
+                                    const handleInboxClick = () => {
+                                        // Don't mark as viewed automatically - let individual request clicks handle it
                                         handleNavigate(path);
                                     };
 

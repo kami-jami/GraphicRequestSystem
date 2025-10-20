@@ -54,15 +54,19 @@ namespace GraphicRequestSystem.API.Controllers
             var currentUser = await _userManager.FindByIdAsync(userId);
             var userRoles = await _userManager.GetRolesAsync(currentUser);
 
-            // --- Get last viewed timestamp for inbox category ---
-            DateTime? lastViewedAt = null;
-            if (!string.IsNullOrEmpty(inboxCategory))
-            {
-                var lastView = await _context.InboxViews
-                    .Where(iv => iv.UserId == userId && iv.InboxCategory == inboxCategory)
-                    .FirstOrDefaultAsync();
-                lastViewedAt = lastView?.LastViewedAt;
-            }
+            // --- Get user's viewed requests with their viewed status and timestamp ---
+            var viewedRequestsWithStatus = await _context.RequestViews
+                .Where(rv => rv.UserId == userId)
+                .Select(rv => new { rv.RequestId, rv.ViewedAtStatus, rv.ViewedAt })
+                .ToListAsync();
+
+            // Create a dictionary of (RequestId, Status) -> ViewedAt timestamp for fast lookup
+            var viewedRequestStatusMap = viewedRequestsWithStatus
+                .GroupBy(v => (v.RequestId, v.ViewedAtStatus))
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.Max(v => v.ViewedAt) // Take latest view time if multiple views at same status
+                );
 
             // --- 2. ایجاد کوئری پایه ---
             var query = _context.Requests.AsQueryable();
@@ -137,28 +141,21 @@ namespace GraphicRequestSystem.API.Controllers
                 r.RequesterUsername,
                 r.RequestTypeName,
                 r.DueDate,
-                IsUnread = lastViewedAt.HasValue
-                    ? (r.SubmissionDate > lastViewedAt.Value || (r.LatestHistoryDate.HasValue && r.LatestHistoryDate.Value > lastViewedAt.Value))
-                    : false
+                r.SubmissionDate,
+                r.LatestHistoryDate,
+                // تاریخ آخرین تغییر وضعیت (یا تاریخ ثبت اگر تاریخچه‌ای وجود نداشت)
+                LastStatusChangeDate = r.LatestHistoryDate ?? r.SubmissionDate,
+                // Request is unread if:
+                // 1. User never viewed it at current status, OR
+                // 2. Last status change happened AFTER user's last view
+                IsUnread = !viewedRequestStatusMap.TryGetValue((r.Id, r.Status), out var lastViewedAt) ||
+                          (r.LatestHistoryDate ?? r.SubmissionDate) > lastViewedAt
             }).ToList();
 
-            // مرتب‌سازی: ابتدا unread ها، سپس بقیه
-            if (userRoles.Contains("Designer"))
-            {
-                // برای طراح: ابتدا unread ها بر اساس نزدیک‌ترین تاریخ، سپس بقیه
-                requestsWithUnread = requestsWithUnread
-                    .OrderByDescending(r => r.IsUnread)
-                    .ThenBy(r => r.DueDate)
-                    .ToList();
-            }
-            else
-            {
-                // برای سایرین: ابتدا unread ها بر اساس جدیدترین، سپس بقیه
-                requestsWithUnread = requestsWithUnread
-                    .OrderByDescending(r => r.IsUnread)
-                    .ThenByDescending(r => r.DueDate)
-                    .ToList();
-            }
+            // مرتب‌سازی: همه درخواست‌ها بر اساس آخرین تاریخ تغییر وضعیت (جدیدترین اول)
+            requestsWithUnread = requestsWithUnread
+                .OrderByDescending(r => r.LastStatusChangeDate)
+                .ToList();
 
             return Ok(requestsWithUnread);
         }
@@ -178,56 +175,59 @@ namespace GraphicRequestSystem.API.Controllers
 
             var counts = new Dictionary<string, int>();
 
-            // Helper method to get count of NEW items since last view
-            async Task<int> GetNewItemsCount(string categoryKey, Func<IQueryable<Request>, IQueryable<Request>> filter)
-            {
-                var lastView = await _context.InboxViews
-                    .Where(iv => iv.UserId == userId && iv.InboxCategory == categoryKey)
-                    .FirstOrDefaultAsync();
+            // Get user's viewed requests with their viewed status and timestamp
+            var viewedRequestsWithStatus = await _context.RequestViews
+                .Where(rv => rv.UserId == userId)
+                .Select(rv => new { rv.RequestId, rv.ViewedAtStatus, rv.ViewedAt })
+                .ToListAsync();
 
+            var viewedRequestStatusMap = viewedRequestsWithStatus
+                .GroupBy(v => (v.RequestId, v.ViewedAtStatus))
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.Max(v => v.ViewedAt)
+                );
+
+            // Helper method to get count of UNREAD items (not viewed at current status OR viewed before last status change)
+            async Task<int> GetUnreadItemsCount(Func<IQueryable<Request>, IQueryable<Request>> filter)
+            {
                 var query = _context.Requests.AsQueryable();
                 query = filter(query);
 
-                var totalInCategory = await query.CountAsync();
-                Console.WriteLine($"🔍 [{categoryKey}] Total items in category: {totalInCategory}");
-
-                if (lastView != null)
+                // Get all requests with their current status and last change date
+                var requestsWithStatus = await query.Select(r => new
                 {
-                    Console.WriteLine($"🔍 [{categoryKey}] LastViewedAt: {lastView.LastViewedAt:yyyy-MM-dd HH:mm:ss}");
+                    r.Id,
+                    r.Status,
+                    r.SubmissionDate,
+                    LatestHistoryDate = _context.RequestHistories
+                        .Where(h => h.RequestId == r.Id)
+                        .Max(h => (DateTime?)h.ActionDate)
+                }).ToListAsync();
 
-                    // Count items where:
-                    // 1. Request was created after last view, OR
-                    // 2. Request has a history entry after last view (status change, comment, etc.)
-                    var requestsWithRecentActivity = await query
-                        .Where(r => r.SubmissionDate > lastView.LastViewedAt ||
-                                   _context.RequestHistories
-                                       .Where(h => h.RequestId == r.Id && h.ActionDate > lastView.LastViewedAt)
-                                       .Any())
-                        .CountAsync();
+                // Count how many are unread (never viewed at current status OR last change happened after last view)
+                var unreadCount = requestsWithStatus.Count(r =>
+                    !viewedRequestStatusMap.TryGetValue((r.Id, r.Status), out var lastViewedAt) ||
+                    (r.LatestHistoryDate ?? r.SubmissionDate) > lastViewedAt
+                );
 
-                    Console.WriteLine($"🔍 [{categoryKey}] New items since last view: {requestsWithRecentActivity}");
-                    return requestsWithRecentActivity;
-                }
-
-                // If never viewed, count all items
-                Console.WriteLine($"🔍 [{categoryKey}] Never viewed, returning all items: {totalInCategory}");
-                return totalInCategory;
+                return unreadCount;
             }
 
             // Requester counts
             if (userRoles.Contains("Requester"))
             {
                 // Under Review – Requests submitted but designer hasn't started yet
-                counts["requester_underReview"] = await GetNewItemsCount("requester_underReview",
+                counts["requester_underReview"] = await GetUnreadItemsCount(
                     q => q.Where(r => r.RequesterId == userId &&
                         (r.Status == RequestStatus.Submitted || r.Status == RequestStatus.DesignerReview)));
 
                 // Needs Revision – Requests returned by the designer
-                counts["requester_needsRevision"] = await GetNewItemsCount("requester_needsRevision",
+                counts["requester_needsRevision"] = await GetUnreadItemsCount(
                     q => q.Where(r => r.RequesterId == userId && r.Status == RequestStatus.PendingCorrection));
 
                 // Completed – Requests that have been finalized and closed
-                counts["requester_completed"] = await GetNewItemsCount("requester_completed",
+                counts["requester_completed"] = await GetUnreadItemsCount(
                     q => q.Where(r => r.RequesterId == userId && r.Status == RequestStatus.Completed));
             }
 
@@ -235,20 +235,20 @@ namespace GraphicRequestSystem.API.Controllers
             if (userRoles.Contains("Designer"))
             {
                 // Pending Action – New requests, requests returned by approver, and resubmitted by requester after correction
-                counts["designer_pendingAction"] = await GetNewItemsCount("designer_pendingAction",
+                counts["designer_pendingAction"] = await GetUnreadItemsCount(
                     q => q.Where(r => r.DesignerId == userId &&
                         (r.Status == RequestStatus.DesignerReview || r.Status == RequestStatus.PendingRedesign)));
 
                 // In Progress – Requests currently being worked on
-                counts["designer_inProgress"] = await GetNewItemsCount("designer_inProgress",
+                counts["designer_inProgress"] = await GetUnreadItemsCount(
                     q => q.Where(r => r.DesignerId == userId && r.Status == RequestStatus.DesignInProgress));
 
                 // Pending Approval – Design completed but awaiting approval
-                counts["designer_pendingApproval"] = await GetNewItemsCount("designer_pendingApproval",
+                counts["designer_pendingApproval"] = await GetUnreadItemsCount(
                     q => q.Where(r => r.DesignerId == userId && r.Status == RequestStatus.PendingApproval));
 
                 // Completed – Projects that have been finalized and closed
-                counts["designer_completed"] = await GetNewItemsCount("designer_completed",
+                counts["designer_completed"] = await GetUnreadItemsCount(
                     q => q.Where(r => r.DesignerId == userId && r.Status == RequestStatus.Completed));
             }
 
@@ -256,15 +256,64 @@ namespace GraphicRequestSystem.API.Controllers
             if (userRoles.Contains("Approver"))
             {
                 // Pending Approval – Requests that require a decision or approval
-                counts["approver_pendingApproval"] = await GetNewItemsCount("approver_pendingApproval",
+                counts["approver_pendingApproval"] = await GetUnreadItemsCount(
                     q => q.Where(r => r.ApproverId == userId && r.Status == RequestStatus.PendingApproval));
 
                 // Completed – Requests that have been approved or closed
-                counts["approver_completed"] = await GetNewItemsCount("approver_completed",
+                counts["approver_completed"] = await GetUnreadItemsCount(
                     q => q.Where(r => r.ApproverId == userId && r.Status == RequestStatus.Completed));
             }
 
             return Ok(counts);
+        }
+
+        // POST: api/Requests/{id}/mark-viewed
+        [HttpPost("{id}/mark-viewed")]
+        public async Task<IActionResult> MarkRequestAsViewed(int id)
+        {
+            var userId = User.FindFirstValue("id");
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized();
+            }
+
+            // Get request with its current status
+            var request = await _context.Requests
+                .Where(r => r.Id == id)
+                .Select(r => new { r.Id, r.Status })
+                .FirstOrDefaultAsync();
+
+            if (request == null)
+            {
+                return NotFound();
+            }
+
+            // Check if already viewed at CURRENT status
+            var existingView = await _context.RequestViews
+                .FirstOrDefaultAsync(rv => rv.UserId == userId
+                    && rv.RequestId == id
+                    && rv.ViewedAtStatus == request.Status);
+
+            if (existingView != null)
+            {
+                // Update the viewed timestamp (user viewed same request at same status again)
+                existingView.ViewedAt = DateTime.UtcNow;
+            }
+            else
+            {
+                // Create new view record for this status
+                // Note: If status changed, this creates a new record even if user viewed at previous status
+                _context.RequestViews.Add(new RequestView
+                {
+                    UserId = userId,
+                    RequestId = id,
+                    ViewedAtStatus = request.Status,
+                    ViewedAt = DateTime.UtcNow
+                });
+            }
+
+            await _context.SaveChangesAsync();
+            return Ok();
         }
 
         // POST: api/Requests/mark-inbox-viewed
@@ -551,9 +600,19 @@ namespace GraphicRequestSystem.API.Controllers
                 }
 
                 // Broadcast capacity update to all users viewing the date picker
-                await BroadcastCapacityUpdateAsync(newRequest.DueDate);
+                if (newRequest.DueDate.HasValue)
+                {
+                    await BroadcastCapacityUpdateAsync(newRequest.DueDate);
+                }
 
-                return Ok(newRequest);
+                // Return a simple response object instead of the full entity
+                return Ok(new
+                {
+                    id = newRequest.Id,
+                    title = newRequest.Title,
+                    status = newRequest.Status,
+                    message = "درخواست با موفقیت ثبت شد"
+                });
             }
             catch (Exception)
             {
