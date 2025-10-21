@@ -54,39 +54,70 @@ namespace GraphicRequestSystem.API.Controllers
         [HttpPost("login")]
         public async Task<IActionResult> Login(LoginDto loginDto)
         {
-            var user = await _userManager.FindByNameAsync(loginDto.Username);
+            // Trim whitespace from inputs to handle mobile browser quirks
+            var username = loginDto.Username?.Trim();
+            var password = loginDto.Password;
 
-            if (user != null && !user.IsActive)
-                return Unauthorized("حساب کاربری شما غیرفعال شده است.");
-
-            if (user != null && await _userManager.CheckPasswordAsync(user, loginDto.Password))
+            if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
             {
-                var authClaims = new List<Claim>
-                {
-                    new Claim("id", user.Id),
-                    new Claim("username", user.UserName),
-                    new Claim("firstName", user.FirstName ?? ""),
-                    new Claim("lastName", user.LastName ?? ""),
-                    new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-                };
-
-
-                var userRoles = await _userManager.GetRolesAsync(user);
-                foreach (var userRole in userRoles)
-                {
-                    authClaims.Add(new Claim("role", userRole));
-                }
-                
-
-                var token = GetToken(authClaims);
-
-                return Ok(new
-                {
-                    token = new JwtSecurityTokenHandler().WriteToken(token),
-                    expiration = token.ValidTo
-                });
+                return Unauthorized("نام کاربری یا رمز عبور خالی است.");
             }
-            return Unauthorized();
+
+            // Try to find user by username first, then by email
+            var user = await _userManager.FindByNameAsync(username);
+            if (user == null)
+            {
+                user = await _userManager.FindByEmailAsync(username);
+            }
+
+            // Check if user exists
+            if (user == null)
+            {
+                // Log for debugging (remove in production)
+                Console.WriteLine($"Login failed: User not found for username/email: {username}");
+                return Unauthorized("نام کاربری یا رمز عبور اشتباه است.");
+            }
+
+            // Check if user is active
+            if (!user.IsActive)
+            {
+                Console.WriteLine($"Login failed: User {username} is inactive");
+                return Unauthorized("حساب کاربری شما غیرفعال شده است.");
+            }
+
+            // Check password
+            var passwordValid = await _userManager.CheckPasswordAsync(user, password);
+            if (!passwordValid)
+            {
+                Console.WriteLine($"Login failed: Invalid password for user: {username}");
+                return Unauthorized("نام کاربری یا رمز عبور اشتباه است.");
+            }
+
+            // Password is valid, create token
+            var authClaims = new List<Claim>
+            {
+                new Claim("id", user.Id),
+                new Claim("username", user.UserName ?? ""),
+                new Claim("firstName", user.FirstName ?? ""),
+                new Claim("lastName", user.LastName ?? ""),
+                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+            };
+
+            var userRoles = await _userManager.GetRolesAsync(user);
+            foreach (var userRole in userRoles)
+            {
+                authClaims.Add(new Claim("role", userRole));
+            }
+
+            var token = GetToken(authClaims);
+
+            Console.WriteLine($"Login successful for user: {username}");
+
+            return Ok(new
+            {
+                token = new JwtSecurityTokenHandler().WriteToken(token),
+                expiration = token.ValidTo
+            });
         }
 
         private JwtSecurityToken GetToken(List<Claim> authClaims)

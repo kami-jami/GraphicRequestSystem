@@ -1,0 +1,129 @@
+version: '3.8'
+
+services:
+  # SQL Server Database - Production
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: graphicrequest-sqlserver-prod
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=${SQL_SERVER_PASSWORD}
+      - MSSQL_PID=Standard
+    ports:
+      - "${SQL_SERVER_PORT:-1433}:1433"
+    volumes:
+      - sqlserver-prod-data:/var/opt/mssql
+      - ./backups:/var/opt/mssql/backup
+    networks:
+      - graphicrequest-network
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 2G
+    healthcheck:
+      test: /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P ${SQL_SERVER_PASSWORD} -C -Q "SELECT 1" || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: always
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  # Backend API - Production
+  api:
+    build:
+      context: ./GraphicRequestSystem.API
+      dockerfile: Dockerfile
+    image: graphicrequest-api:latest
+    container_name: graphicrequest-api-prod
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:80
+      - ConnectionStrings__DefaultConnection=Server=sqlserver;Database=${DATABASE_NAME:-GraphicRequestDb};User Id=sa;Password=${SQL_SERVER_PASSWORD};TrustServerCertificate=true;MultipleActiveResultSets=true;
+      - Jwt__Issuer=${JWT_ISSUER}
+      - Jwt__Audience=${JWT_AUDIENCE}
+      - Jwt__Key=${JWT_KEY}
+    ports:
+      - "${API_PORT:-5000}:80"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    networks:
+      - graphicrequest-network
+    volumes:
+      - api-uploads:/app/wwwroot/uploads
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    restart: always
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Frontend Client - Production
+  client:
+    build:
+      context: ./graphic-request-client
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_BASE_URL=${VITE_API_BASE_URL:-http://localhost:5000/api}
+    image: graphicrequest-client:latest
+    container_name: graphicrequest-client-prod
+    ports:
+      - "${CLIENT_PORT:-3000}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - graphicrequest-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    restart: always
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  sqlserver-prod-data:
+    driver: local
+  api-uploads:
+    driver: local
+
+networks:
+  graphicrequest-network:
+    driver: bridge

@@ -212,7 +212,7 @@ const RequesterDashboard = ({ data, inboxCounts, navigate, refetchInboxCounts }:
                             onClick={() => navigate('/requests/new')}
                             sx={{
                                 backgroundColor: 'white',
-                                color: '#667eea',
+                                color: '#ffffffff',
                                 fontWeight: 'bold',
                                 px: 4,
                                 py: 1.5,

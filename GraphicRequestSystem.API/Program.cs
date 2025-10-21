@@ -43,18 +43,24 @@ builder.Services.AddScoped<IRequestDetailStrategy, DefaultRequestStrategy>();
 builder.Services.AddScoped<RequestDetailStrategyFactory>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 
-builder.Services.AddHangfire(configuration => configuration
-    .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
-    .UseSimpleAssemblyNameTypeSerializer()
-    .UseRecommendedSerializerSettings()
-    .UseSqlServerStorage(builder.Configuration.GetConnectionString("DefaultConnection"), new SqlServerStorageOptions
-    {
-        CommandBatchMaxTimeout = TimeSpan.FromMinutes(5),
-        SlidingInvisibilityTimeout = TimeSpan.FromMinutes(5),
-        QueuePollInterval = TimeSpan.Zero,
-        UseRecommendedIsolationLevel = true,
-        DisableGlobalLocks = true
-    }));
+// Configure Hangfire with retry logic for SQL Server connection
+builder.Services.AddHangfire(configuration =>
+{
+    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+    configuration
+        .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+        .UseSimpleAssemblyNameTypeSerializer()
+        .UseRecommendedSerializerSettings()
+        .UseSqlServerStorage(connectionString, new SqlServerStorageOptions
+        {
+            CommandBatchMaxTimeout = TimeSpan.FromMinutes(5),
+            SlidingInvisibilityTimeout = TimeSpan.FromMinutes(5),
+            QueuePollInterval = TimeSpan.Zero,
+            UseRecommendedIsolationLevel = true,
+            DisableGlobalLocks = true,
+            PrepareSchemaIfNecessary = true // Ensure Hangfire schema is created
+        });
+});
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
@@ -76,7 +82,11 @@ builder.Services.AddCors(options =>
     options.AddPolicy(name: myAllowSpecificOrigins,
         policy =>
         {
-            policy.WithOrigins("http://localhost:5173")
+            policy.WithOrigins(
+                    "http://localhost:5173",  // Vite dev server
+                    "http://localhost:3000",   // Docker frontend
+                    "https://grs.mydevlab.ir" // Cloudflare Tunnel
+                )
                 .AllowAnyHeader()
                 .AllowAnyMethod()
                 .AllowCredentials(); // Required for SignalR
@@ -94,12 +104,10 @@ builder.Services.AddAuthentication(options =>
 {
     options.TokenValidationParameters = new TokenValidationParameters
     {
-        ValidateIssuer = true,
-        ValidateAudience = true,
+        ValidateIssuer = false,  // Disabled for multi-domain support (localhost + Cloudflare Tunnel)
+        ValidateAudience = false,  // Disabled for multi-domain support
         ValidateLifetime = true,
         ValidateIssuerSigningKey = true,
-        ValidIssuer = builder.Configuration["Jwt:Issuer"],
-        ValidAudience = builder.Configuration["Jwt:Audience"],
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]))
     };
 
@@ -190,6 +198,46 @@ app.MapControllers();
 app.MapHub<NotificationHub>("/hubs/notifications");
 
 app.UseHangfireDashboard();
+
+// Apply database migrations and seed data with retry logic
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    var logger = services.GetRequiredService<ILogger<Program>>();
+    var context = services.GetRequiredService<AppDbContext>();
+
+    int retryCount = 0;
+    int maxRetries = 5;
+    bool migrationSuccessful = false;
+
+    while (!migrationSuccessful && retryCount < maxRetries)
+    {
+        try
+        {
+            retryCount++;
+            logger.LogInformation($"Attempting database migration (Attempt {retryCount}/{maxRetries})...");
+
+            // Apply migrations
+            context.Database.Migrate();
+
+            logger.LogInformation("Database migrations applied successfully.");
+            migrationSuccessful = true;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, $"Database migration attempt {retryCount} failed. Waiting 5 seconds before retry...");
+
+            if (retryCount >= maxRetries)
+            {
+                logger.LogError(ex, "Failed to apply database migrations after {MaxRetries} attempts.", maxRetries);
+                throw;
+            }
+
+            Thread.Sleep(5000); // Wait 5 seconds before retry
+        }
+    }
+}
+
 RecurringJob.AddOrUpdate<DeadlineCheckerJob>(
     "deadline-checker-job",
     job => job.CheckForUpcomingDeadlines(),
@@ -199,13 +247,79 @@ RecurringJob.AddOrUpdate<DeadlineCheckerJob>(
 using (var scope = app.Services.CreateScope())
 {
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
-    string[] roleNames = { "Admin", "Approver", "Designer", "Requester" };
-    foreach (var roleName in roleNames)
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+
+    try
     {
-        if (!await roleManager.RoleExistsAsync(roleName))
+        string[] roleNames = { "Admin", "Approver", "Designer", "Requester" };
+        foreach (var roleName in roleNames)
         {
-            await roleManager.CreateAsync(new IdentityRole(roleName));
+            if (!await roleManager.RoleExistsAsync(roleName))
+            {
+                await roleManager.CreateAsync(new IdentityRole(roleName));
+                logger.LogInformation($"Role '{roleName}' created successfully.");
+            }
         }
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "An error occurred while seeding roles.");
+        throw;
+    }
+}
+
+// Seed default admin user
+using (var scope = app.Services.CreateScope())
+{
+    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+
+    try
+    {
+        // Check if admin user already exists
+        var adminEmail = "admin@graphicrequest.com";
+        var adminUser = await userManager.FindByEmailAsync(adminEmail);
+
+        if (adminUser == null)
+        {
+            logger.LogInformation("Creating default admin user...");
+
+            // Create admin user
+            adminUser = new AppUser
+            {
+                UserName = adminEmail,
+                Email = adminEmail,
+                EmailConfirmed = true,
+                FirstName = "System",
+                LastName = "Administrator",
+                IsActive = true,
+                PhoneNumber = "0000000000"
+            };
+
+            var createResult = await userManager.CreateAsync(adminUser, "Admin@123456");
+
+            if (createResult.Succeeded)
+            {
+                // Assign Admin role
+                await userManager.AddToRoleAsync(adminUser, "Admin");
+                logger.LogInformation($"Admin user created successfully with email: {adminEmail}");
+                logger.LogInformation($"Default admin password: Admin@123456");
+                logger.LogWarning("IMPORTANT: Please change the default admin password after first login!");
+            }
+            else
+            {
+                logger.LogError($"Failed to create admin user: {string.Join(", ", createResult.Errors.Select(e => e.Description))}");
+            }
+        }
+        else
+        {
+            logger.LogInformation($"Admin user already exists: {adminEmail}");
+        }
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "An error occurred while seeding admin user.");
+        throw;
     }
 }
 
